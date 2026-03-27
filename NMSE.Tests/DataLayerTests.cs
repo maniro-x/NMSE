@@ -450,4 +450,105 @@ public class DataLayerTests
     {
         Assert.Equal(0, CoordinateHelper.GetJumpsToCenter(1000.0, -50.0));
     }
+
+    // --- DecodeUniversalAddress ----------------------------------------
+
+    [Fact]
+    public void CoordinateHelper_DecodeUA_LongValue_ExtractsGalaxyAndPortalCode()
+    {
+        // UA hex: 00012E000E45A7B3
+        // Buffer=00, P=0, SSS=12E, GG=00 (Euclid), YY=0E, ZZZ=45A, XXX=7B3
+        // Portal code = 012E + 0E45A7B3 = 012E0E45A7B3
+        long ua = 0x00012E000E45A7B3L;
+        bool ok = CoordinateHelper.DecodeUniversalAddress(ua, out int galaxy, out string portal);
+        Assert.True(ok);
+        Assert.Equal(0, galaxy); // Euclid
+        Assert.Equal("012E0E45A7B3", portal);
+        Assert.Equal(12, portal.Length);
+    }
+
+    [Fact]
+    public void CoordinateHelper_DecodeUA_StringHex_Works()
+    {
+        bool ok = CoordinateHelper.DecodeUniversalAddress("0x00012E000E45A7B3", out int galaxy, out string portal);
+        Assert.True(ok);
+        Assert.Equal(0, galaxy);
+        Assert.Equal("012E0E45A7B3", portal);
+    }
+
+    [Fact]
+    public void CoordinateHelper_DecodeUA_DecimalString_Works()
+    {
+        // 0x00012E000E45A7B3 = 5188146790009267 in decimal
+        long ua = 0x00012E000E45A7B3L;
+        bool ok = CoordinateHelper.DecodeUniversalAddress(ua.ToString(), out int galaxy, out string portal);
+        Assert.True(ok);
+        Assert.Equal(0, galaxy);
+        Assert.Equal("012E0E45A7B3", portal);
+    }
+
+    [Fact]
+    public void CoordinateHelper_DecodeUA_Galaxy10_CorrectIndex()
+    {
+        // GG = 0A (galaxy index 10 = Eissentam)
+        // UA hex: 0001000A00000000
+        long ua = 0x0001000A00000000L;
+        bool ok = CoordinateHelper.DecodeUniversalAddress(ua, out int galaxy, out string portal);
+        Assert.True(ok);
+        Assert.Equal(10, galaxy); // Eissentam
+    }
+
+    [Fact]
+    public void CoordinateHelper_DecodeUA_Zero_ReturnsEuclid()
+    {
+        bool ok = CoordinateHelper.DecodeUniversalAddress(0L, out int galaxy, out string portal);
+        Assert.True(ok);
+        Assert.Equal(0, galaxy);
+        Assert.Equal("000000000000", portal);
+    }
+
+    [Fact]
+    public void CoordinateHelper_DecodeUA_Null_ReturnsFalse()
+    {
+        bool ok = CoordinateHelper.DecodeUniversalAddress(null, out _, out _);
+        Assert.False(ok);
+    }
+
+    [Fact]
+    public void CoordinateHelper_DecodeUA_IntValue_Works()
+    {
+        // Small int value - galaxy should be 0
+        bool ok = CoordinateHelper.DecodeUniversalAddress(0, out int galaxy, out string portal);
+        Assert.True(ok);
+        Assert.Equal(0, galaxy);
+        Assert.Equal(12, portal.Length);
+    }
+
+    // --- GalaxyDatabase.GetGalaxyIndexFromDisplayName ------------------
+
+    [Theory]
+    [InlineData("Euclid (1)", 0)]
+    [InlineData("Eissentam (10)", 9)]
+    [InlineData("Calypso (3)", 2)]
+    public void GalaxyDatabase_GetGalaxyIndexFromDisplayName_ParsesCorrectly(string displayName, int expected)
+    {
+        Assert.Equal(expected, GalaxyDatabase.GetGalaxyIndexFromDisplayName(displayName));
+    }
+
+    [Theory]
+    [InlineData("Euclid", 0)]
+    [InlineData("Eissentam", 9)]
+    public void GalaxyDatabase_GetGalaxyIndexFromDisplayName_RawName_Works(string name, int expected)
+    {
+        Assert.Equal(expected, GalaxyDatabase.GetGalaxyIndexFromDisplayName(name));
+    }
+
+    [Theory]
+    [InlineData("", 0)]
+    [InlineData(null, 0)]
+    [InlineData("NonExistentGalaxy", 0)]
+    public void GalaxyDatabase_GetGalaxyIndexFromDisplayName_Invalid_ReturnsZero(string? name, int expected)
+    {
+        Assert.Equal(expected, GalaxyDatabase.GetGalaxyIndexFromDisplayName(name!));
+    }
 }

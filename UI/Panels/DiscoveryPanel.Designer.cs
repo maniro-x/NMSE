@@ -516,6 +516,96 @@ partial class DiscoveryPanel
         fishTab.Controls.Add(fishLayout);
         _tabControl.TabPages.Add(fishTab);
 
+        // --- Tab 7: Discovery Manager ---
+        var dmTab = new TabPage("Discovery Manager");
+        var dmLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 5
+        };
+        dmLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // filter
+        dmLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // buttons
+        dmLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); // grid
+        dmLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // detail
+        dmLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // extra
+
+        // Filter row
+        var dmFilterPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
+        _dmFilterBox = new TextBox { Width = 200, PlaceholderText = "Filter by name, type, owner..." };
+        _dmFilterBox.TextChanged += (s, e) => ApplyDiscoveryManagerFilter();
+        var dmFilterClearBtn = new Button { Text = "X", Width = 28, Height = 23 };
+        dmFilterClearBtn.Click += (s, e) => { _dmFilterBox.Text = ""; };
+        dmFilterPanel.Controls.Add(_dmFilterBox);
+        dmFilterPanel.Controls.Add(dmFilterClearBtn);
+        dmLayout.Controls.Add(dmFilterPanel, 0, 0);
+
+        // Button row
+        var dmBtnPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
+        _dmTravelToBtn = new Button { Text = "Travel to System", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0) };
+        _dmTravelToBtn.Click += DiscoveryManagerTravelToSystem_Click;
+        dmBtnPanel.Controls.Add(_dmTravelToBtn);
+        _dmExportBtn = new Button { Text = "Export", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _dmExportBtn.Click += (s, e) => ExportDiscoveryManagerCsv();
+        _dmImportBtn = new Button { Text = "Import", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _dmImportBtn.Click += (s, e) => ImportDiscoveryManagerCsv();
+        dmBtnPanel.Controls.Add(_dmExportBtn);
+        dmBtnPanel.Controls.Add(_dmImportBtn);
+        dmLayout.Controls.Add(dmBtnPanel, 0, 1);
+
+        // Grid
+        _dmGrid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            RowHeadersVisible = false,
+            ReadOnly = true
+        };
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmIndex", HeaderText = "#", FillWeight = 3 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmSource", HeaderText = "Source", FillWeight = 8 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmName", HeaderText = "Name", FillWeight = 25 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmType", HeaderText = "Discovery Type", FillWeight = 15 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmOwner", HeaderText = "Discovered By", FillWeight = 15 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmGalaxy", HeaderText = "Galaxy", FillWeight = 15 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmPortalCode", HeaderText = "Portal Code (Hex)", FillWeight = 12 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmPortalCodeDec", HeaderText = "Portal Code (Dec)", FillWeight = 20 });
+        _dmGrid.SelectionChanged += OnDiscoveryManagerSelectionChanged;
+        _dmGrid.CellPainting += OnDiscoveryManagerCellPainting;
+        dmLayout.Controls.Add(_dmGrid, 0, 2);
+
+        // Bottom detail: glyph panel + galaxy label (same pattern as Known Locations)
+        var dmDetailPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(5)
+        };
+        _dmGlyphCaptionLabel = new Label { Text = "Portal Glyphs:", AutoSize = true, Padding = new Padding(0, 5, 5, 0) };
+        dmDetailPanel.Controls.Add(_dmGlyphCaptionLabel);
+        _dmGlyphPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = false,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+        };
+        dmDetailPanel.Controls.Add(_dmGlyphPanel);
+        _dmGalaxyCaptionLabel = new Label { Text = "  Galaxy:", AutoSize = true, Padding = new Padding(10, 5, 5, 0) };
+        dmDetailPanel.Controls.Add(_dmGalaxyCaptionLabel);
+        _dmGalaxyLabel = new Label { AutoSize = true, Padding = new Padding(0, 5, 0, 0), Font = new Font(DefaultFont.FontFamily, 9, FontStyle.Bold) };
+        dmDetailPanel.Controls.Add(_dmGalaxyLabel);
+        _dmGalaxyDot = new Label { AutoSize = true, Text = "", Padding = new Padding(0, 5, 0, 0), Font = new Font(DefaultFont.FontFamily, 9, FontStyle.Bold) };
+        dmDetailPanel.Controls.Add(_dmGalaxyDot);
+        dmLayout.Controls.Add(dmDetailPanel, 0, 3);
+
+        dmTab.Controls.Add(dmLayout);
+        _tabControl.TabPages.Add(dmTab);
+
         Controls.Add(_tabControl);
         ResumeLayout(false);
         PerformLayout();
@@ -571,6 +661,18 @@ partial class DiscoveryPanel
     private Button _fishFilterClearBtn = null!;
     private Button _addFishBtn = null!;
     private Button _removeFishBtn = null!;
+
+    // Tab 7: Discovery Manager
+    private DataGridView _dmGrid = null!;
+    private TextBox _dmFilterBox = null!;
+    private Button _dmTravelToBtn = null!;
+    private Button _dmExportBtn = null!;
+    private Button _dmImportBtn = null!;
+    private FlowLayoutPanel _dmGlyphPanel = null!;
+    private Label _dmGlyphCaptionLabel = null!;
+    private Label _dmGalaxyCaptionLabel = null!;
+    private Label _dmGalaxyLabel = null!;
+    private Label _dmGalaxyDot = null!;
 
     // Export/Import buttons
     private Button _exportTechBtn = null!;

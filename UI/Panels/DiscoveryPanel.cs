@@ -154,6 +154,7 @@ public partial class DiscoveryPanel : UserControl
         LoadKnownGlyphs(playerState);
         LoadKnownLocations(playerState);
         LoadKnownFish(playerState);
+        LoadDiscoveryManager(saveData);
         }
         finally
         {
@@ -1186,6 +1187,577 @@ public partial class DiscoveryPanel : UserControl
         }
     }
 
+    // --- Tab 7: Discovery Manager ---
+
+    private static readonly Color StoredColor = Color.FromArgb(0x55, 0xAA, 0x55);   // Green for Stored
+    private static readonly Color AvailableColor = Color.FromArgb(0xCC, 0x88, 0x33); // Orange for Available
+
+    private void LoadDiscoveryManager(JsonObject saveData)
+    {
+        _dmGrid.SuspendLayout();
+        try
+        {
+            _dmGrid.Rows.Clear();
+            try
+            {
+                var dmData = saveData.GetObject("DiscoveryManagerData");
+                if (dmData == null) return;
+
+                var ddv1 = dmData.GetObject("DiscoveryData-v1");
+                if (ddv1 == null) return;
+
+                var rowList = new List<DataGridViewRow>();
+                int index = 0;
+
+                // Build a name→count map for duplicate owner name detection (across both arrays)
+                var ownerNameCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                CountOwnerNames(ddv1, "Store", ownerNameCounts);
+                CountOwnerNames(ddv1, "Available", ownerNameCounts);
+
+                // Load Stored discoveries (Store.Record)
+                var store = ddv1.GetObject("Store");
+                if (store != null)
+                {
+                    var record = store.GetArray("Record");
+                    if (record != null)
+                    {
+                        for (int i = 0; i < record.Length; i++)
+                        {
+                            try
+                            {
+                                if (record.Get(i) is JsonObject disc)
+                                    AddDiscoveryRow(rowList, disc, "Stored", ref index, ownerNameCounts);
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                // Load Available discoveries
+                var available = ddv1.GetArray("Available");
+                if (available != null)
+                {
+                    for (int i = 0; i < available.Length; i++)
+                    {
+                        try
+                        {
+                            if (available.Get(i) is JsonObject disc)
+                                AddDiscoveryRow(rowList, disc, "Available", ref index, ownerNameCounts);
+                        }
+                        catch { }
+                    }
+                }
+
+                _dmGrid.Rows.AddRange(rowList.ToArray());
+            }
+            catch { }
+        }
+        finally
+        {
+            _dmGrid.ResumeLayout(true);
+        }
+    }
+
+    private static void CountOwnerNames(JsonObject ddv1, string containerName, Dictionary<string, int> counts)
+    {
+        try
+        {
+            JsonArray? records = null;
+            if (containerName == "Store")
+            {
+                var store = ddv1.GetObject("Store");
+                if (store != null)
+                    records = store.GetArray("Record");
+            }
+            else
+            {
+                records = ddv1.GetArray(containerName);
+            }
+            if (records == null) return;
+
+            for (int i = 0; i < records.Length; i++)
+            {
+                try
+                {
+                    if (records.Get(i) is not JsonObject disc) continue;
+                    var ows = disc.GetObject("OWS");
+                    if (ows == null) continue;
+                    string usn = ows.GetString("USN") ?? "";
+                    if (string.IsNullOrEmpty(usn)) continue;
+                    counts[usn] = counts.TryGetValue(usn, out int c) ? c + 1 : 1;
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
+    private void AddDiscoveryRow(List<DataGridViewRow> rowList, JsonObject disc, string source,
+        ref int index, Dictionary<string, int> ownerNameCounts)
+    {
+        // Discovery Type
+        string dt = "";
+        try { dt = disc.GetString("DT") ?? ""; } catch { }
+
+        // Custom name from DD (Discovery Data)
+        string name = "";
+        try
+        {
+            var dd = disc.GetObject("DD");
+            if (dd != null)
+            {
+                // Try CN (Common Name) first, then VP or Name
+                try { name = dd.GetString("CN") ?? ""; } catch { }
+                if (string.IsNullOrEmpty(name))
+                    try { name = dd.GetString("Name") ?? ""; } catch { }
+            }
+        }
+        catch { }
+
+        // Owner info (OWS)
+        string ownerDisplay = "";
+        string ownerUsn = "";
+        string ownerUid = "";
+        string ownerLid = "";
+        string ownerPtk = "";
+        try
+        {
+            var ows = disc.GetObject("OWS");
+            if (ows != null)
+            {
+                try { ownerUsn = ows.GetString("USN") ?? ""; } catch { }
+                try { ownerUid = ows.GetString("UID") ?? ""; } catch { }
+                try { ownerLid = ows.GetString("LID") ?? ""; } catch { }
+                try { ownerPtk = ows.GetString("PTK") ?? ""; } catch { }
+
+                ownerDisplay = ownerUsn;
+                // Append PTK if there are duplicate owner names
+                if (!string.IsNullOrEmpty(ownerUsn) && !string.IsNullOrEmpty(ownerPtk)
+                    && ownerNameCounts.TryGetValue(ownerUsn, out int cnt) && cnt > 1)
+                {
+                    ownerDisplay = $"{ownerUsn} ({ownerPtk})";
+                }
+            }
+        }
+        catch { }
+
+        // Universal Address
+        string portalCode = "";
+        string galaxyName = "";
+        int galaxyIndex = 0;
+        try
+        {
+            var uaValue = disc.Get("UA");
+            if (uaValue != null && CoordinateHelper.DecodeUniversalAddress(uaValue, out galaxyIndex, out portalCode))
+            {
+                galaxyName = GalaxyDatabase.GetGalaxyDisplayName(galaxyIndex);
+            }
+        }
+        catch { }
+
+        var row = new DataGridViewRow();
+        row.CreateCells(_dmGrid, index, source, name, dt, ownerDisplay,
+            galaxyName, portalCode, CoordinateHelper.PortalHexToDec(portalCode));
+
+        // Tag for source color, galaxy index, and owner fields for filtering
+        row.Cells[1].Tag = source; // "Stored" or "Available" for painting
+        row.Cells[5].Tag = galaxyIndex; // Galaxy index for color painting
+        // Store owner identifiers in the owner cell's Tag for filter matching
+        row.Cells[4].Tag = new string[] { ownerUsn, ownerUid, ownerLid, ownerPtk };
+
+        rowList.Add(row);
+        index++;
+    }
+
+    private void OnDiscoveryManagerSelectionChanged(object? sender, EventArgs e)
+    {
+        if (_dmGrid.SelectedRows.Count == 0)
+        {
+            CoordinateHelper.UpdateGlyphPanel(_dmGlyphPanel, "");
+            _dmGalaxyLabel.Text = "";
+            _dmGalaxyDot.Text = "";
+            return;
+        }
+
+        int rowIdx = _dmGrid.SelectedRows[0].Index;
+        string portalCode = _dmGrid.Rows[rowIdx].Cells["DmPortalCode"].Value?.ToString() ?? "";
+        string galaxy = _dmGrid.Rows[rowIdx].Cells["DmGalaxy"].Value?.ToString() ?? "";
+        CoordinateHelper.UpdateGlyphPanel(_dmGlyphPanel, portalCode);
+        _dmGalaxyLabel.Text = galaxy;
+
+        int realityIndex = _dmGrid.Rows[rowIdx].Cells["DmGalaxy"].Tag is int ri ? ri : 0;
+        string galaxyType = GalaxyDatabase.GetGalaxyType(realityIndex);
+        _dmGalaxyDot.Text = string.IsNullOrEmpty(galaxy) ? "" : " \u25CF";
+        _dmGalaxyDot.ForeColor = GalaxyDatabase.GetGalaxyTypeColor(galaxyType);
+    }
+
+    /// <summary>
+    /// Custom paint handler for the Discovery Manager grid. Applies color to Source column
+    /// (Stored=green, Available=orange) and Galaxy column (type-based dot color).
+    /// </summary>
+    private void OnDiscoveryManagerCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+
+        string colName = _dmGrid.Columns[e.ColumnIndex].Name;
+
+        if (colName == "DmSource")
+        {
+            e.PaintBackground(e.ClipBounds, e.State.HasFlag(DataGridViewElementStates.Selected));
+            string text = e.Value?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(text) && e.Graphics != null)
+            {
+                Color textColor = text == "Stored" ? StoredColor : AvailableColor;
+                if (e.State.HasFlag(DataGridViewElementStates.Selected))
+                    textColor = Color.FromArgb(Math.Min(textColor.R + 60, 255),
+                                               Math.Min(textColor.G + 60, 255),
+                                               Math.Min(textColor.B + 60, 255));
+
+                var font = e.CellStyle?.Font ?? _dmGrid.DefaultCellStyle.Font ?? _dmGrid.Font;
+                using var brush = new SolidBrush(textColor);
+                var textSize = e.Graphics.MeasureString(text, font);
+                var rect = e.CellBounds;
+                e.Graphics.DrawString(text, font, brush, rect.X + 2, rect.Y + (rect.Height - textSize.Height) / 2);
+            }
+            e.Handled = true;
+        }
+        else if (colName == "DmGalaxy")
+        {
+            e.PaintBackground(e.ClipBounds, e.State.HasFlag(DataGridViewElementStates.Selected));
+            string text = e.Value?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(text) && e.Graphics != null)
+            {
+                int realityIndex = _dmGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Tag is int ri ? ri : 0;
+                string galaxyType = GalaxyDatabase.GetGalaxyType(realityIndex);
+                Color dotColor = GalaxyDatabase.GetGalaxyTypeColor(galaxyType);
+
+                var font = e.CellStyle?.Font ?? _dmGrid.DefaultCellStyle.Font ?? _dmGrid.Font;
+                var normalColor = e.State.HasFlag(DataGridViewElementStates.Selected)
+                    ? (e.CellStyle?.SelectionForeColor ?? SystemColors.HighlightText)
+                    : (e.CellStyle?.ForeColor ?? SystemColors.ControlText);
+
+                using var textBrush = new SolidBrush(normalColor);
+                using var dotBrush = new SolidBrush(dotColor);
+
+                var textSize = e.Graphics.MeasureString(text + " ", font);
+                var rect = e.CellBounds;
+                rect.X += 2;
+                e.Graphics.DrawString(text + " ", font, textBrush, rect.X, rect.Y + (rect.Height - textSize.Height) / 2);
+                e.Graphics.DrawString("\u25CF", font, dotBrush, rect.X + textSize.Width - 2, rect.Y + (rect.Height - textSize.Height) / 2);
+            }
+            e.Handled = true;
+        }
+    }
+
+    private void DiscoveryManagerTravelToSystem_Click(object? sender, EventArgs e)
+    {
+        if (_savedPlayerState == null || _savedSaveData == null || _dmGrid.SelectedRows.Count == 0) return;
+
+        int rowIdx = _dmGrid.SelectedRows[0].Index;
+        string portalCode = _dmGrid.Rows[rowIdx].Cells["DmPortalCode"].Value?.ToString() ?? "";
+        int galaxyIndex = _dmGrid.Rows[rowIdx].Cells["DmGalaxy"].Tag is int ri ? ri : 0;
+
+        if (string.IsNullOrEmpty(portalCode) || portalCode.Length != 12)
+        {
+            MessageBox.Show(UiStrings.Get("discovery.dm_no_address"), UiStrings.Get("common.error"),
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var result = MessageBox.Show(UiStrings.Get("discovery.travel_confirm"),
+            UiStrings.Get("discovery.travel_title"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (result != DialogResult.Yes) return;
+
+        try
+        {
+            if (!CoordinateHelper.PortalCodeToVoxel(portalCode, out int vx, out int vy, out int vz, out int si, out _))
+            {
+                MessageBox.Show(UiStrings.Get("discovery.travel_failed"), UiStrings.Get("common.error"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var playerAddr = _savedPlayerState.GetObject("UniverseAddress");
+            if (playerAddr != null)
+            {
+                playerAddr.Set("RealityIndex", galaxyIndex);
+                var playerGal = playerAddr.GetObject("GalacticAddress");
+                if (playerGal != null)
+                {
+                    playerGal.Set("VoxelX", vx);
+                    playerGal.Set("VoxelY", vy);
+                    playerGal.Set("VoxelZ", vz);
+                    playerGal.Set("SolarSystemIndex", si);
+                    playerGal.Set("PlanetIndex", 0);
+                }
+            }
+
+            if (_savedSaveData != null)
+            {
+                try
+                {
+                    var spawnState = _savedSaveData.GetObject("SpawnStateData");
+                    if (spawnState != null)
+                        spawnState.Set("LastKnownPlayerState", "InShip");
+                }
+                catch { }
+            }
+
+            MessageBox.Show(UiStrings.Get("discovery.travel_complete"),
+                UiStrings.Get("discovery.travel_complete_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            RaiseDataModified();
+        }
+        catch
+        {
+            MessageBox.Show(UiStrings.Get("discovery.travel_failed"), UiStrings.Get("common.error"),
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void ApplyDiscoveryManagerFilter()
+    {
+        string filter = _dmFilterBox.Text.Trim();
+        foreach (DataGridViewRow row in _dmGrid.Rows)
+        {
+            if (string.IsNullOrEmpty(filter))
+            {
+                row.Visible = true;
+                continue;
+            }
+
+            string name = row.Cells["DmName"].Value?.ToString() ?? "";
+            string type = row.Cells["DmType"].Value?.ToString() ?? "";
+            string owner = row.Cells["DmOwner"].Value?.ToString() ?? "";
+            string galaxy = row.Cells["DmGalaxy"].Value?.ToString() ?? "";
+            string portalCode = row.Cells["DmPortalCode"].Value?.ToString() ?? "";
+            string source = row.Cells["DmSource"].Value?.ToString() ?? "";
+
+            // Standard matching on displayed fields
+            bool match = name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                      || type.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                      || owner.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                      || galaxy.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                      || portalCode.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                      || source.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+            // For owner filtering, also match against USN, UID, LID, PTK
+            if (!match && row.Cells["DmOwner"].Tag is string[] ownerFields)
+            {
+                foreach (string field in ownerFields)
+                {
+                    if (!string.IsNullOrEmpty(field) && field.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                    {
+                        match = true;
+                        break;
+                    }
+                }
+            }
+
+            row.Visible = match;
+        }
+    }
+
+    private void ExportDiscoveryManagerCsv()
+    {
+        if (_dmGrid.Rows.Count == 0) return;
+
+        using var dialog = new SaveFileDialog
+        {
+            Filter = "CSV files (*.csv)|*.csv|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            DefaultExt = "csv",
+            FileName = "DiscoveryManager.csv"
+        };
+        if (dialog.ShowDialog() != DialogResult.OK) return;
+
+        try
+        {
+            using var writer = new System.IO.StreamWriter(dialog.FileName, false, System.Text.Encoding.UTF8);
+            // Header
+            writer.WriteLine("Index,Source,Name,Discovery Type,Discovered By,Galaxy,Portal Code (Hex),Portal Code (Dec)");
+
+            foreach (DataGridViewRow row in _dmGrid.Rows)
+            {
+                string idx = CsvEscape(row.Cells["DmIndex"].Value?.ToString() ?? "");
+                string source = CsvEscape(row.Cells["DmSource"].Value?.ToString() ?? "");
+                string name = CsvEscape(row.Cells["DmName"].Value?.ToString() ?? "");
+                string type = CsvEscape(row.Cells["DmType"].Value?.ToString() ?? "");
+                string owner = CsvEscape(row.Cells["DmOwner"].Value?.ToString() ?? "");
+                string galaxy = CsvEscape(row.Cells["DmGalaxy"].Value?.ToString() ?? "");
+                string portal = CsvEscape(row.Cells["DmPortalCode"].Value?.ToString() ?? "");
+                string portalDec = CsvEscape(row.Cells["DmPortalCodeDec"].Value?.ToString() ?? "");
+
+                writer.WriteLine($"{idx},{source},{name},{type},{owner},{galaxy},{portal},{portalDec}");
+            }
+
+            MessageBox.Show(UiStrings.Format("discovery.dm_export_success", _dmGrid.Rows.Count),
+                UiStrings.Get("common.export"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(UiStrings.Format("discovery.export_failed", ex.Message),
+                UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void ImportDiscoveryManagerCsv()
+    {
+        if (_savedSaveData == null) return;
+
+        using var dialog = new OpenFileDialog
+        {
+            Filter = "CSV files (*.csv)|*.csv|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+        };
+        if (dialog.ShowDialog() != DialogResult.OK) return;
+
+        try
+        {
+            var lines = System.IO.File.ReadAllLines(dialog.FileName);
+            if (lines.Length < 2)
+            {
+                MessageBox.Show(UiStrings.Get("discovery.dm_import_empty"),
+                    UiStrings.Get("discovery.import_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var dmData = _savedSaveData.GetObject("DiscoveryManagerData");
+            if (dmData == null) return;
+            var ddv1 = dmData.GetObject("DiscoveryData-v1");
+            if (ddv1 == null) return;
+
+            // Get or create Store.Record
+            var store = ddv1.GetObject("Store");
+            JsonArray? record = null;
+            if (store != null)
+                record = store.GetArray("Record");
+
+            // Get or create Available
+            var available = ddv1.GetArray("Available");
+
+            int imported = 0;
+            // Skip header row
+            for (int i = 1; i < lines.Length; i++)
+            {
+                var fields = ParseCsvLine(lines[i]);
+                if (fields.Length < 7) continue;
+
+                string source = fields[1].Trim();
+                string csvName = fields[2].Trim();
+                string csvType = fields[3].Trim();
+                string csvGalaxy = fields[5].Trim();
+                string csvPortal = fields[6].Trim();
+
+                // Reconstruct the UA from galaxy + portal code
+                // Portal code is 12 hex chars: [P][SSS][YY][ZZZ][XXX]
+                // UA is 16 hex chars: [00][P][SSS][GG][YY][ZZZ][XXX]
+                if (csvPortal.Length != 12) continue;
+
+                int galaxyIdx = 0;
+                // Try to extract galaxy index from display name like "Euclid (1)"
+                if (!string.IsNullOrEmpty(csvGalaxy))
+                    galaxyIdx = GalaxyDatabase.GetGalaxyIndexFromDisplayName(csvGalaxy);
+
+                string uaHex = "00" + csvPortal[..4] + galaxyIdx.ToString("X2") + csvPortal[4..];
+
+                // Build discovery record
+                var disc = new JsonObject();
+                if (!string.IsNullOrEmpty(csvType))
+                    disc.Set("DT", csvType);
+
+                // Set UA as a long value (decimal)
+                if (long.TryParse(uaHex, System.Globalization.NumberStyles.HexNumber,
+                        System.Globalization.CultureInfo.InvariantCulture, out long uaLong))
+                    disc.Set("UA", uaLong);
+
+                // Set name in DD
+                if (!string.IsNullOrEmpty(csvName))
+                {
+                    var dd = new JsonObject();
+                    dd.Set("CN", csvName);
+                    disc.Set("DD", dd);
+                }
+
+                // Add to appropriate array based on source
+                if (string.Equals(source, "Available", StringComparison.OrdinalIgnoreCase))
+                {
+                    available?.Add(disc);
+                }
+                else
+                {
+                    record?.Add(disc);
+                }
+
+                imported++;
+            }
+
+            if (imported > 0)
+            {
+                LoadDiscoveryManager(_savedSaveData);
+                RaiseDataModified();
+            }
+
+            MessageBox.Show(UiStrings.Format("discovery.dm_import_success", imported),
+                UiStrings.Get("discovery.import_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(UiStrings.Format("discovery.import_failed", ex.Message),
+                UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private static string CsvEscape(string value)
+    {
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        return value;
+    }
+
+    private static string[] ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        int i = 0;
+        while (i < line.Length)
+        {
+            if (line[i] == '"')
+            {
+                // Quoted field
+                i++; // skip opening quote
+                var sb = new System.Text.StringBuilder();
+                while (i < line.Length)
+                {
+                    if (line[i] == '"')
+                    {
+                        if (i + 1 < line.Length && line[i + 1] == '"')
+                        {
+                            sb.Append('"');
+                            i += 2;
+                        }
+                        else
+                        {
+                            i++; // skip closing quote
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        sb.Append(line[i]);
+                        i++;
+                    }
+                }
+                fields.Add(sb.ToString());
+                if (i < line.Length && line[i] == ',') i++; // skip comma
+            }
+            else
+            {
+                int start = i;
+                while (i < line.Length && line[i] != ',') i++;
+                fields.Add(line[start..i]);
+                if (i < line.Length) i++; // skip comma
+            }
+        }
+        return fields.ToArray();
+    }
+
     // --- Filters ---
 
     private void ApplyWordFilter()
@@ -1560,7 +2132,7 @@ public partial class DiscoveryPanel : UserControl
     public void ApplyUiLocalisation()
     {
         // Tab pages
-        if (_tabControl.TabPages.Count >= 6)
+        if (_tabControl.TabPages.Count >= 7)
         {
             _tabControl.TabPages[0].Text = UiStrings.Get("discovery.tab_tech");
             _tabControl.TabPages[1].Text = UiStrings.Get("discovery.tab_products");
@@ -1568,6 +2140,7 @@ public partial class DiscoveryPanel : UserControl
             _tabControl.TabPages[3].Text = UiStrings.Get("discovery.tab_glyphs");
             _tabControl.TabPages[4].Text = UiStrings.Get("discovery.tab_locations");
             _tabControl.TabPages[5].Text = UiStrings.Get("discovery.tab_fish");
+            _tabControl.TabPages[6].Text = UiStrings.Get("discovery.tab_discovery_manager");
         }
 
         // Buttons
@@ -1591,16 +2164,26 @@ public partial class DiscoveryPanel : UserControl
         _addFishBtn.Text = UiStrings.Get("discovery.add_fish_title");
         _removeFishBtn.Text = UiStrings.Get("discovery.remove_selected");
 
+        // Discovery Manager buttons
+        _dmTravelToBtn.Text = UiStrings.Get("discovery.travel_to_system");
+        _dmExportBtn.Text = UiStrings.Get("common.export");
+        _dmImportBtn.Text = UiStrings.Get("common.import");
+
         // Filter placeholders
         _techFilterBox.PlaceholderText = UiStrings.Get("discovery.filter_items");
         _productFilterBox.PlaceholderText = UiStrings.Get("discovery.filter_items");
         _wordFilterBox.PlaceholderText = UiStrings.Get("discovery.filter_words");
         _locFilterBox.PlaceholderText = UiStrings.Get("discovery.filter_locations");
         _fishFilterBox.PlaceholderText = UiStrings.Get("discovery.filter_fish");
+        _dmFilterBox.PlaceholderText = UiStrings.Get("discovery.filter_dm");
 
         // Location detail caption labels
         _portalGlyphsCaptionLabel.Text = UiStrings.Get("discovery.portal_glyphs");
         _galaxyCaptionLabel.Text = UiStrings.Get("discovery.galaxy");
+
+        // Discovery Manager detail caption labels
+        _dmGlyphCaptionLabel.Text = UiStrings.Get("discovery.portal_glyphs");
+        _dmGalaxyCaptionLabel.Text = UiStrings.Get("discovery.galaxy");
 
         // Tech grid columns
         if (_techGrid.Columns["Name"] is DataGridViewColumn tName) tName.HeaderText = UiStrings.Get("discovery.col_name");
@@ -1630,6 +2213,16 @@ public partial class DiscoveryPanel : UserControl
         if (_fishGrid.Columns["Name"] is DataGridViewColumn fName) fName.HeaderText = UiStrings.Get("discovery.col_name");
         if (_fishGrid.Columns["Count"] is DataGridViewColumn fCount) fCount.HeaderText = UiStrings.Get("discovery.col_count");
         if (_fishGrid.Columns["LargestCatch"] is DataGridViewColumn fLargest) fLargest.HeaderText = UiStrings.Get("discovery.col_largest_catch");
+
+        // Discovery Manager grid columns
+        if (_dmGrid.Columns["DmIndex"] is DataGridViewColumn dmIdx) dmIdx.HeaderText = UiStrings.Get("discovery.col_index");
+        if (_dmGrid.Columns["DmSource"] is DataGridViewColumn dmSrc) dmSrc.HeaderText = UiStrings.Get("discovery.col_source");
+        if (_dmGrid.Columns["DmName"] is DataGridViewColumn dmName) dmName.HeaderText = UiStrings.Get("discovery.col_name");
+        if (_dmGrid.Columns["DmType"] is DataGridViewColumn dmType) dmType.HeaderText = UiStrings.Get("discovery.col_discovery_type");
+        if (_dmGrid.Columns["DmOwner"] is DataGridViewColumn dmOwn) dmOwn.HeaderText = UiStrings.Get("discovery.col_discovered_by");
+        if (_dmGrid.Columns["DmGalaxy"] is DataGridViewColumn dmGal) dmGal.HeaderText = UiStrings.Get("discovery.col_galaxy");
+        if (_dmGrid.Columns["DmPortalCode"] is DataGridViewColumn dmPC) dmPC.HeaderText = UiStrings.Get("discovery.col_portal_hex");
+        if (_dmGrid.Columns["DmPortalCodeDec"] is DataGridViewColumn dmPD) dmPD.HeaderText = UiStrings.Get("discovery.col_portal_dec");
 
         // Export/Import buttons
         _exportTechBtn.Text = UiStrings.Get("common.export");

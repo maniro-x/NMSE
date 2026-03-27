@@ -299,4 +299,33 @@ public static class GalaxyDatabase
         "Empty" => System.Drawing.Color.FromArgb(0x55, 0xCC, 0xCC),   // Cyan
         _ => System.Drawing.Color.FromArgb(0x55, 0x88, 0xCC),         // Blue (Normal)
     };
+
+    /// <summary>
+    /// Parse galaxy index (0-based) from a display name like "Euclid (1)" or a raw galaxy name.
+    /// Returns 0 if not found.
+    /// </summary>
+    public static int GetGalaxyIndexFromDisplayName(string displayName)
+    {
+        if (string.IsNullOrEmpty(displayName)) return 0;
+
+        // Try to parse "Name (N)" format first
+        int parenOpen = displayName.LastIndexOf('(');
+        int parenClose = displayName.LastIndexOf(')');
+        if (parenOpen >= 0 && parenClose > parenOpen)
+        {
+            string numStr = displayName[(parenOpen + 1)..parenClose].Trim();
+            if (int.TryParse(numStr, out int num) && num >= 1 && num <= Galaxies.Length)
+                return num - 1; // Convert 1-based number to 0-based index
+        }
+
+        // Try matching by name
+        string trimmed = displayName.Trim();
+        for (int i = 0; i < Galaxies.Length; i++)
+        {
+            if (string.Equals(Galaxies[i].Name, trimmed, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+
+        return 0;
+    }
 }

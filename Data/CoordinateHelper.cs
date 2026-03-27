@@ -139,6 +139,106 @@ public static class CoordinateHelper
         return address >= halfSign ? address - signValue : address;
     }
 
+    /// <summary>
+    /// Decode a Universal Address (UA) from the DiscoveryManager into a galaxy index and portal code.
+    /// The UA can be provided as a decimal number or a hex string (with or without "0x" prefix).
+    /// UA hex format (16 digits): [??][P][SSS][GG][YY][ZZZ][XXX]
+    ///   ?? = buffer (2 digits), P = planet (1), SSS = system (3), GG = galaxy (2),
+    ///   YY = voxelY (2), ZZZ = voxelZ (3), XXX = voxelX (3).
+    /// The portal code is the 12-char hex substring: P + SSS + YY + ZZZ + XXX.
+    /// </summary>
+    public static bool DecodeUniversalAddress(object? uaValue, out int galaxyIndex, out string portalCode)
+    {
+        galaxyIndex = 0;
+        portalCode = "";
+
+        if (uaValue == null) return false;
+
+        string hex;
+        if (uaValue is long l)
+        {
+            hex = l.ToString("X16");
+        }
+        else if (uaValue is int i)
+        {
+            hex = ((long)i).ToString("X16");
+        }
+        else if (uaValue is double d)
+        {
+            hex = ((long)d).ToString("X16");
+        }
+        else if (uaValue is string s)
+        {
+            s = s.Trim();
+            bool wasExplicitHex = s.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
+            if (wasExplicitHex)
+                s = s[2..];
+
+            // Check if string contains hex letters (A-F)
+            bool hasHexLetters = false;
+            foreach (char c in s)
+            {
+                if ((c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))
+                {
+                    hasHexLetters = true;
+                    break;
+                }
+            }
+
+            if (wasExplicitHex || hasHexLetters)
+            {
+                // Treat as hex string
+                // Validate all chars are hex digits
+                bool allHex = true;
+                foreach (char c in s)
+                {
+                    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
+                    {
+                        allHex = false;
+                        break;
+                    }
+                }
+                if (!allHex || s.Length == 0 || s.Length > 16)
+                    return false;
+                hex = s.PadLeft(16, '0').ToUpperInvariant();
+            }
+            else
+            {
+                // All digits (0-9) only: treat as decimal number
+                if (long.TryParse(s, out long dec))
+                    hex = dec.ToString("X16");
+                else
+                    return false;
+            }
+        }
+        else
+        {
+            // Try converting to long via string
+            string str = uaValue.ToString() ?? "";
+            if (long.TryParse(str, out long val))
+                hex = val.ToString("X16");
+            else
+                return false;
+        }
+
+        if (hex.Length < 16)
+            hex = hex.PadLeft(16, '0');
+
+        // Format: [??][P][SSS][GG][YY][ZZZ][XXX]
+        //          0-1  2  3-5  6-7  8-9  10-12  13-15
+        try
+        {
+            galaxyIndex = Convert.ToInt32(hex[6..8], 16);
+            // Portal code = P + SSS + YY + ZZZ + XXX
+            portalCode = (hex[2..6] + hex[8..16]).ToUpperInvariant();
+            return portalCode.Length == 12;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
 #if WINFORMS
     /// <summary>Glyph image cache, indexed by hex digit 0-F.</summary>
     private static readonly Dictionary<char, Image?> _glyphCache = new();
