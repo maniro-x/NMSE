@@ -1,0 +1,126 @@
+# --------------------------------------------------------------
+# NMSE Build Workflow
+# Builds, tests, publishes (Native AOT). It does create a release.
+#
+# The publish step produces a fully self-contained, trimmed,
+# Native AOT executable - users do not need .NET installed.
+#
+#
+# All actions are pinned to immutable commit SHAs to mitigate
+# supply-chain attacks.  When upgrading, update both the SHA
+# and the version comment.
+# --------------------------------------------------------------
+
+name: Build NMSE (No Rel)
+
+env:
+  PROJECT_NAME: NMSE
+  PROJECT_FILE: NMSE.csproj
+  TEST_PROJECT_FILE: NMSE.Tests/NMSE.Tests.csproj
+  DOTNET_VERSION: "10.0.x"
+  BUILD_CONFIGURATION: Release
+
+on:
+  # -- Un/comment the push block below to enable automated releases --
+  push:
+    paths:
+      - "version.json"
+
+  # Allow manual triggering from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.PROJECT_FILE }}
+
+      - name: Build
+        run: dotnet build ${{ env.PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Restore test dependencies
+        run: dotnet restore ${{ env.TEST_PROJECT_FILE }}
+
+      - name: Run tests
+        run: dotnet test ${{ env.TEST_PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore --verbosity normal
+
+      # Publish Native AOT: produces a self-contained, trimmed native executable.
+      # This step re-builds with AOT compilation (ILC) and takes longer than the
+      # managed build above, but the output requires no .NET runtime on the target.
+      - name: Publish (Native AOT)
+        if: success()
+        run: dotnet publish ${{ env.PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+      
+      # -- Publish artifacts ----------------------------------
+
+      - name: Locate build zip
+        if: success()
+        id: find-zip
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path Build/bin -Filter "NMSE-*-${{ env.BUILD_CONFIGURATION }}.zip" |
+                 Select-Object -First 1
+          if (-not $zip) { Write-Error "No build zip found in Build/bin/"; exit 1 }
+          "ZIP_PATH=$($zip.FullName)"  >> $env:GITHUB_OUTPUT
+          "ZIP_NAME=$($zip.Name)"      >> $env:GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.PROJECT_NAME }}-build
+          path: ${{ steps.find-zip.outputs.ZIP_PATH }}
+          if-no-files-found: warn
+
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: build-win
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Download win build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROJECT_NAME }}-build
+
+      - name: Unzip win build
+        run: |
+          winbuild="$(ls NMSE*.zip)"
+          unzip "$winbuild" -d $GITHUB_WORKSPACE/win
+
+      - name: Install Wine
+        run: |
+          sudo mkdir -pm755 /etc/apt/keyrings
+          wget -O - https://dl.winehq.org/wine-builds/winehq.key | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
+          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/questing/winehq-questing.sources
+          sudo apt update
+          sudo apt install winehq-stable --no-install-recommends -y
+
+      - name: Run build-appimage script
+        id: appimage
+        run: |
+          sudo chmod +x ./scripts/linux/build-appimage.sh
+          WIN_DIR="$GITHUB_WORKSPACE/win"
+          OUTPUT_FILE="$GITHUB_WORKSPACE/NMSE-x64.AppImage"
+          scripts/linux/build-appimage.sh "$WIN_DIR" "$OUTPUT_FILE"
+          echo "APPIMAGE_PATH=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+      
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.PROJECT_NAME }}-Wine-AppImage
+          path: ${{ steps.appimage.outputs.APPIMAGE_PATH }}
+          if-no-files-found: error
