@@ -100,6 +100,16 @@ public static class CoordinateHelper
         return (int)(0.5 * Math.Pow(16, byteLength) - 1);
     }
 
+    private static bool IsHexString(string s)
+    {
+        foreach (char c in s)
+        {
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
+                return false;
+        }
+        return true;
+    }
+
     /// <summary>
     /// Parse a 12-character portal code (hex) back into voxel coordinates.
     /// Format: {planetIndex:1}{systemIndex:3}{y:2}{z:3}{x:3}
@@ -112,12 +122,8 @@ public static class CoordinateHelper
         if (string.IsNullOrEmpty(portalCode) || portalCode.Length != 12)
             return false;
 
-        // Validate all characters are hex digits
-        foreach (char c in portalCode)
-        {
-            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
-                return false;
-        }
+        if (!IsHexString(portalCode))
+            return false;
 
         planetIndex = Convert.ToInt32(portalCode[..1], 16);
         systemIndex = Convert.ToInt32(portalCode[1..4], 16);
@@ -174,7 +180,7 @@ public static class CoordinateHelper
             if (wasExplicitHex)
                 s = s[2..];
 
-            // Check if string contains hex letters (A-F)
+            // Check if string contains hex letters (A-F), which identifies it as hex
             bool hasHexLetters = false;
             foreach (char c in s)
             {
@@ -187,18 +193,8 @@ public static class CoordinateHelper
 
             if (wasExplicitHex || hasHexLetters)
             {
-                // Treat as hex string
-                // Validate all chars are hex digits
-                bool allHex = true;
-                foreach (char c in s)
-                {
-                    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
-                    {
-                        allHex = false;
-                        break;
-                    }
-                }
-                if (!allHex || s.Length == 0 || s.Length > 16)
+                // Treat as hex string; validate all characters are valid hex digits
+                if (!IsHexString(s) || s.Length == 0 || s.Length > 16)
                     return false;
                 hex = s.PadLeft(16, '0').ToUpperInvariant();
             }
