@@ -516,6 +516,69 @@ partial class DiscoveryPanel
         fishTab.Controls.Add(fishLayout);
         _tabControl.TabPages.Add(fishTab);
 
+        // --- Tab 7: Discovery Manager ---
+        var dmTab = new TabPage("Discovery Manager");
+        var dmLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+        };
+        dmLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        dmLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var dmFilterPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+        };
+        _dmFilterBox = new TextBox { Width = 200, PlaceholderText = "Filter by name, type or owner..." };
+        _dmFilterBox.TextChanged += (s, e) => ApplyDiscoveryManagerFilter();
+        _dmFilterClearBtn = new Button { Text = "X", Width = 28, Height = 23 };
+        _dmFilterClearBtn.Click += (s, e) => { _dmFilterBox.Text = ""; };
+        _dmTypeFilter = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
+        _dmTypeFilter.Items.Add("All Types");
+        _dmTypeFilter.SelectedIndex = 0;
+        _dmTypeFilter.SelectedIndexChanged += (s, e) => ApplyDiscoveryManagerFilter();
+        _dmUserFilter = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
+        _dmUserFilter.Items.Add("All Users");
+        _dmUserFilter.SelectedIndex = 0;
+        _dmUserFilter.SelectedIndexChanged += (s, e) => ApplyDiscoveryManagerFilter();
+        dmFilterPanel.Controls.Add(_dmFilterBox);
+        dmFilterPanel.Controls.Add(_dmFilterClearBtn);
+        dmFilterPanel.Controls.Add(_dmTypeFilter);
+        dmFilterPanel.Controls.Add(_dmUserFilter);
+        dmLayout.Controls.Add(dmFilterPanel, 0, 0);
+
+        _dmGrid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AllowUserToResizeRows = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            RowHeadersVisible = false,
+            ReadOnly = true,
+            RowTemplate = { Height = 24 },
+        };
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmIndex", HeaderText = "#", FillWeight = 4, AutoSizeMode = DataGridViewAutoSizeColumnMode.None, Width = 40 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmType", HeaderText = "Type", FillWeight = 15 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmName", HeaderText = "Name", FillWeight = 18 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmCustomName", HeaderText = "Custom Name", FillWeight = 18 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmOwner", HeaderText = "Owner", FillWeight = 14 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmPlatform", HeaderText = "Platform", FillWeight = 7 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmGalaxy", HeaderText = "Galaxy", FillWeight = 14 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmPortalCode", HeaderText = "Portal Code", FillWeight = 14 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmSignalBooster", HeaderText = "Signal Booster", FillWeight = 16 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmTimestamp", HeaderText = "Timestamp", FillWeight = 16 });
+        _dmGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "DmUID", HeaderText = "UID", FillWeight = 18 });
+        dmLayout.Controls.Add(_dmGrid, 0, 1);
+
+        dmTab.Controls.Add(dmLayout);
+        _tabControl.TabPages.Add(dmTab);
+
         Controls.Add(_tabControl);
         ResumeLayout(false);
         PerformLayout();
@@ -571,6 +634,13 @@ partial class DiscoveryPanel
     private Button _fishFilterClearBtn = null!;
     private Button _addFishBtn = null!;
     private Button _removeFishBtn = null!;
+
+    // Tab 7: Discovery Manager
+    private DataGridView _dmGrid = null!;
+    private TextBox _dmFilterBox = null!;
+    private Button _dmFilterClearBtn = null!;
+    private ComboBox _dmTypeFilter = null!;
+    private ComboBox _dmUserFilter = null!;
 
     // Export/Import buttons
     private Button _exportTechBtn = null!;

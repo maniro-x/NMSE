@@ -10,6 +10,35 @@ namespace NMSE.Data;
 /// <summary>NMS galactic coordinate conversion utilities.</summary>
 public static class CoordinateHelper
 {
+    /// <summary>
+    /// Decodes a packed NMS Universe Address (UA) long value into its component coordinates.
+    /// The value is stored as a 64-bit signed long, of which the lower 56 bits carry meaningful data:
+    /// bits 0-11 = x, bits 12-23 = z, bits 24-31 = y, bits 32-43 = solar system, bits 44-47 = planet,
+    /// bits 48-55 = galaxy index. The upper 8 bits (56-63) are unused.
+    /// Reading the lower 48 bits as a big-endian hex string produces the standard 12-character portal code.
+    /// Returns <c>false</c> if <paramref name="ua"/> is 0 (no location data).
+    /// </summary>
+    public static bool TryDecodeUA(long ua, out int galaxy, out int planetIndex, out int solarSystemIndex,
+        out int voxelX, out int voxelY, out int voxelZ)
+    {
+        galaxy = planetIndex = solarSystemIndex = voxelX = voxelY = voxelZ = 0;
+        if (ua == 0) return false;
+
+        ulong u = (ulong)ua;
+        int rawX   = (int)(u & 0xFFF);           // bits 0-11
+        int rawZ   = (int)((u >> 12) & 0xFFF);   // bits 12-23
+        int rawY   = (int)((u >> 24) & 0xFF);    // bits 24-31
+        solarSystemIndex = (int)((u >> 32) & 0xFFF); // bits 32-43
+        planetIndex      = (int)((u >> 44) & 0xF);   // bits 44-47
+        galaxy           = (int)((u >> 48) & 0xFF);  // bits 48-55
+
+        // Convert unsigned address values back to signed voxel coordinates
+        voxelX = rawX >= 2048 ? rawX - 4096 : rawX;
+        voxelY = rawY >= 128  ? rawY - 256  : rawY;
+        voxelZ = rawZ >= 2048 ? rawZ - 4096 : rawZ;
+        return true;
+    }
+
     /// <summary>Convert voxel coordinates to a 12-character portal code.</summary>
     public static string VoxelToPortalCode(int voxelX, int voxelY, int voxelZ, int systemIndex, int planetIndex)
     {

@@ -1323,5 +1323,14 @@
   "update.downloading_progress": "Downloading update... {0}%",
   "update.title": "NMSE Update",
   "update.up_to_date": "NMSE is up to date.",
-  "update.up_to_date_msg": "You are running the latest version ({0})."
+  "update.up_to_date_msg": "You are running the latest version ({0}).",
+  "discovery.tab_discovery_manager": "Discovery Manager",
+  "discovery.col_custom_name": "Custom Name",
+  "discovery.col_owner": "Owner",
+  "discovery.col_platform": "Platform",
+  "discovery.col_uid": "UID",
+  "discovery.filter_discoveries": "Filter by name, type or owner...",
+  "discovery.filter_type_all": "All Types",
+  "discovery.filter_user_all": "All Users",
+  "discovery.col_timestamp": "Timestamp"
 }

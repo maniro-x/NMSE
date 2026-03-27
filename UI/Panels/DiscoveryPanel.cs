@@ -154,6 +154,7 @@ public partial class DiscoveryPanel : UserControl
         LoadKnownGlyphs(playerState);
         LoadKnownLocations(playerState);
         LoadKnownFish(playerState);
+        LoadDiscoveryManager(saveData);
         }
         finally
         {
@@ -1152,6 +1153,161 @@ public partial class DiscoveryPanel : UserControl
         RaiseDataModified();
     }
 
+    // --- Tab 7: Discovery Manager ---
+
+    private void LoadDiscoveryManager(JsonObject saveData)
+    {
+        _dmGrid.SuspendLayout();
+        try
+        {
+            _dmGrid.Rows.Clear();
+
+            // Reset filter combos
+            _dmTypeFilter.Items.Clear();
+            _dmTypeFilter.Items.Add(UiStrings.Get("discovery.filter_type_all"));
+            _dmUserFilter.Items.Clear();
+            _dmUserFilter.Items.Add(UiStrings.Get("discovery.filter_user_all"));
+
+            var record = saveData.GetObject("DiscoveryManagerData")
+                ?.GetObject("DiscoveryData-v1")
+                ?.GetObject("Store")
+                ?.GetArray("Record");
+            if (record == null)
+            {
+                _dmTypeFilter.SelectedIndex = 0;
+                _dmUserFilter.SelectedIndex = 0;
+                return;
+            }
+
+            var seenTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenUsers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var rowList = new List<DataGridViewRow>(record.Length);
+
+            for (int i = 0; i < record.Length; i++)
+            {
+                try
+                {
+                    var entry = record.GetObject(i);
+                    if (entry == null) continue;
+
+                    // Owner information
+                    string owner = "", uid = "", platform = "";
+                    try
+                    {
+                        var ows = entry.GetObject("OWS");
+                        if (ows != null)
+                        {
+                            owner    = ows.GetString("USN") ?? "";
+                            uid      = ows.GetString("UID") ?? "";
+                            platform = ows.GetString("PTK") ?? "";
+                        }
+                    }
+                    catch { }
+
+                    // Type and name fields
+                    string type       = "";
+                    string name       = "";
+                    string customName = "";
+                    try { type       = entry.GetString("Type")       ?? ""; } catch { }
+                    try { name       = entry.GetString("Name")       ?? ""; } catch { }
+                    try { customName = entry.GetString("CustomName") ?? ""; } catch { }
+
+                    // Timestamp
+                    string timestamp = "";
+                    try
+                    {
+                        long ts = entry.GetLong("Timestamp");
+                        if (ts != 0)
+                        {
+                            var dt = DateTimeOffset.FromUnixTimeSeconds(ts).ToLocalTime().DateTime;
+                            timestamp = dt.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+                        }
+                    }
+                    catch { }
+
+                    // Galactic address from packed UA
+                    string galaxy = "", portalCode = "", signalBooster = "";
+                    try
+                    {
+                        long ua = 0;
+                        try { ua = entry.GetLong("UA"); } catch { }
+                        if (ua != 0 && CoordinateHelper.TryDecodeUA(ua, out int galaxyIdx, out int planetIdx,
+                            out int solarIdx, out int vx, out int vy, out int vz))
+                        {
+                            galaxy       = GalaxyDatabase.GetGalaxyDisplayName(galaxyIdx);
+                            portalCode   = CoordinateHelper.VoxelToPortalCode(vx, vy, vz, solarIdx, planetIdx);
+                            signalBooster = CoordinateHelper.VoxelToSignalBooster(vx, vy, vz, solarIdx);
+                        }
+                    }
+                    catch { }
+
+                    // Accumulate unique filter values
+                    if (!string.IsNullOrEmpty(type) && seenTypes.Add(type))
+                        _dmTypeFilter.Items.Add(type);
+                    if (!string.IsNullOrEmpty(owner) && seenUsers.Add(owner))
+                        _dmUserFilter.Items.Add(owner);
+
+                    var row = new DataGridViewRow();
+                    row.CreateCells(_dmGrid, i, type, name, customName, owner, platform, galaxy, portalCode, signalBooster, timestamp, uid);
+                    rowList.Add(row);
+                }
+                catch { }
+            }
+
+            _dmGrid.Rows.AddRange(rowList.ToArray());
+
+            _dmTypeFilter.SelectedIndex = 0;
+            _dmUserFilter.SelectedIndex = 0;
+        }
+        catch { }
+        finally
+        {
+            _dmGrid.ResumeLayout(true);
+        }
+    }
+
+    private void ApplyDiscoveryManagerFilter()
+    {
+        string textFilter  = _dmFilterBox.Text.Trim();
+        string typeFilter  = _dmTypeFilter.SelectedIndex > 0 ? _dmTypeFilter.SelectedItem?.ToString() ?? "" : "";
+        string userFilter  = _dmUserFilter.SelectedIndex > 0 ? _dmUserFilter.SelectedItem?.ToString() ?? "" : "";
+
+        foreach (DataGridViewRow row in _dmGrid.Rows)
+        {
+            bool visible = true;
+
+            if (!string.IsNullOrEmpty(typeFilter))
+            {
+                string rowType = row.Cells["DmType"].Value?.ToString() ?? "";
+                if (!string.Equals(rowType, typeFilter, StringComparison.OrdinalIgnoreCase))
+                    visible = false;
+            }
+
+            if (visible && !string.IsNullOrEmpty(userFilter))
+            {
+                string rowUser = row.Cells["DmOwner"].Value?.ToString() ?? "";
+                if (!string.Equals(rowUser, userFilter, StringComparison.OrdinalIgnoreCase))
+                    visible = false;
+            }
+
+            if (visible && !string.IsNullOrEmpty(textFilter))
+            {
+                string rowName   = row.Cells["DmName"].Value?.ToString() ?? "";
+                string rowCustom = row.Cells["DmCustomName"].Value?.ToString() ?? "";
+                string rowType   = row.Cells["DmType"].Value?.ToString() ?? "";
+                string rowOwner  = row.Cells["DmOwner"].Value?.ToString() ?? "";
+                string rowPortal = row.Cells["DmPortalCode"].Value?.ToString() ?? "";
+                visible = rowName.Contains(textFilter, StringComparison.OrdinalIgnoreCase)
+                       || rowCustom.Contains(textFilter, StringComparison.OrdinalIgnoreCase)
+                       || rowType.Contains(textFilter, StringComparison.OrdinalIgnoreCase)
+                       || rowOwner.Contains(textFilter, StringComparison.OrdinalIgnoreCase)
+                       || rowPortal.Contains(textFilter, StringComparison.OrdinalIgnoreCase);
+            }
+
+            row.Visible = visible;
+        }
+    }
+
     private void ApplyFishFilter()
     {
         string filter = _fishFilterBox.Text.Trim();
@@ -1569,6 +1725,8 @@ public partial class DiscoveryPanel : UserControl
             _tabControl.TabPages[4].Text = UiStrings.Get("discovery.tab_locations");
             _tabControl.TabPages[5].Text = UiStrings.Get("discovery.tab_fish");
         }
+        if (_tabControl.TabPages.Count >= 7)
+            _tabControl.TabPages[6].Text = UiStrings.Get("discovery.tab_discovery_manager");
 
         // Buttons
         _addTechButton.Text = UiStrings.Get("discovery.add_technology");
@@ -1630,6 +1788,23 @@ public partial class DiscoveryPanel : UserControl
         if (_fishGrid.Columns["Name"] is DataGridViewColumn fName) fName.HeaderText = UiStrings.Get("discovery.col_name");
         if (_fishGrid.Columns["Count"] is DataGridViewColumn fCount) fCount.HeaderText = UiStrings.Get("discovery.col_count");
         if (_fishGrid.Columns["LargestCatch"] is DataGridViewColumn fLargest) fLargest.HeaderText = UiStrings.Get("discovery.col_largest_catch");
+
+        // Discovery Manager grid columns
+        if (_dmGrid.Columns["DmType"] is DataGridViewColumn dmType) dmType.HeaderText = UiStrings.Get("discovery.col_type");
+        if (_dmGrid.Columns["DmName"] is DataGridViewColumn dmName) dmName.HeaderText = UiStrings.Get("discovery.col_name");
+        if (_dmGrid.Columns["DmCustomName"] is DataGridViewColumn dmCustom) dmCustom.HeaderText = UiStrings.Get("discovery.col_custom_name");
+        if (_dmGrid.Columns["DmOwner"] is DataGridViewColumn dmOwner) dmOwner.HeaderText = UiStrings.Get("discovery.col_owner");
+        if (_dmGrid.Columns["DmPlatform"] is DataGridViewColumn dmPlat) dmPlat.HeaderText = UiStrings.Get("discovery.col_platform");
+        if (_dmGrid.Columns["DmGalaxy"] is DataGridViewColumn dmGal) dmGal.HeaderText = UiStrings.Get("discovery.col_galaxy");
+        if (_dmGrid.Columns["DmPortalCode"] is DataGridViewColumn dmPC) dmPC.HeaderText = UiStrings.Get("discovery.col_portal_hex");
+        if (_dmGrid.Columns["DmSignalBooster"] is DataGridViewColumn dmSB) dmSB.HeaderText = UiStrings.Get("discovery.col_signal_booster");
+        if (_dmGrid.Columns["DmTimestamp"] is DataGridViewColumn dmTS) dmTS.HeaderText = UiStrings.Get("discovery.col_timestamp");
+        if (_dmGrid.Columns["DmUID"] is DataGridViewColumn dmUID) dmUID.HeaderText = UiStrings.Get("discovery.col_uid");
+
+        // Discovery Manager filter placeholders and combo items
+        _dmFilterBox.PlaceholderText = UiStrings.Get("discovery.filter_discoveries");
+        if (_dmTypeFilter.Items.Count > 0) _dmTypeFilter.Items[0] = UiStrings.Get("discovery.filter_type_all");
+        if (_dmUserFilter.Items.Count > 0) _dmUserFilter.Items[0] = UiStrings.Get("discovery.filter_user_all");
 
         // Export/Import buttons
         _exportTechBtn.Text = UiStrings.Get("common.export");
