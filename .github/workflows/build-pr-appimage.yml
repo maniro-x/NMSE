@@ -1,0 +1,155 @@
+# --------------------------------------------------------------
+# NMSE PR AppImage Build Workflow
+# Builds a Windows (Native AOT) artifact and wraps it in a
+# Linux AppImage so that PR builds can be tested on Linux via
+# Wine before merging.
+#
+# Triggered manually from the Actions tab (workflow_dispatch)
+# so that AppImage builds can be requested on demand for any
+# branch without automatically running on every push.
+#
+# Output: a downloadable AppImage artifact attached to the
+# workflow run — no GitHub Release is created.
+#
+# All actions are pinned to immutable commit SHAs to mitigate
+# supply-chain attacks.  When upgrading, update both the SHA
+# and the version comment.
+# --------------------------------------------------------------
+
+name: Build PR AppImage
+
+env:
+  PROJECT_NAME: NMSE
+  PROJECT_FILE: NMSE.csproj
+  TEST_PROJECT_FILE: NMSE.Tests/NMSE.Tests.csproj
+  DOTNET_VERSION: "10.0.x"
+  BUILD_CONFIGURATION: Release
+
+on:
+  # Allow manual triggering from the Actions tab for any branch
+  workflow_dispatch:
+
+  # Also run automatically on pushes to feature/copilot branches
+  push:
+    branches:
+      - "copilot/**"
+      - "feature/**"
+    paths:
+      # Root-level project files
+      - "NMSE.csproj"
+      - "NMSE.slnx"
+      - "Directory.Build.props"
+      - "Program.cs"
+      # Project source folders
+      - "Config/**"
+      - "Core/**"
+      - "Data/**"
+      - "IO/**"
+      - "Models/**"
+      - "UI/**"
+      # Shared resources consumed by NMSE
+      - "Resources/**"
+      # Build scripts (AppImage script changes should trigger a rebuild)
+      - "scripts/linux/**"
+      # Never trigger on extractor or static site
+      - "!NMSE.Extractor/**"
+      - "!NMSE.Extractor.Tests/**"
+      - "!NMSE.Site/**"
+
+jobs:
+  # ----------------------------------------------------------------
+  # Job 1 – Windows build: restore, test, publish (Native AOT)
+  # ----------------------------------------------------------------
+  build-win:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.PROJECT_FILE }}
+
+      - name: Build
+        run: dotnet build ${{ env.PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Restore test dependencies
+        run: dotnet restore ${{ env.TEST_PROJECT_FILE }}
+
+      - name: Run tests
+        run: dotnet test ${{ env.TEST_PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore --verbosity normal
+
+      # Publish Native AOT: produces the self-contained win-x64 NMSE.exe
+      # required by the Linux AppImage build step.
+      - name: Publish (Native AOT)
+        if: success()
+        run: dotnet publish ${{ env.PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Locate build zip
+        if: success()
+        id: find-zip
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path Build/bin -Filter "NMSE-*-${{ env.BUILD_CONFIGURATION }}.zip" |
+                 Select-Object -First 1
+          if (-not $zip) { Write-Error "No build zip found in Build/bin/"; exit 1 }
+          "ZIP_PATH=$($zip.FullName)"  >> $env:GITHUB_OUTPUT
+          "ZIP_NAME=$($zip.Name)"      >> $env:GITHUB_OUTPUT
+
+      - name: Upload Windows build artifact
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.PROJECT_NAME }}-build
+          path: ${{ steps.find-zip.outputs.ZIP_PATH }}
+          if-no-files-found: error
+
+  # ----------------------------------------------------------------
+  # Job 2 – Linux AppImage: wrap the Windows build with Wine
+  # ----------------------------------------------------------------
+  build-appimage:
+    runs-on: ubuntu-latest
+    needs: build-win
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Download Windows build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROJECT_NAME }}-build
+
+      - name: Unzip Windows build
+        run: |
+          winbuild="$(ls NMSE*.zip)"
+          unzip "$winbuild" -d "$GITHUB_WORKSPACE/win"
+
+      - name: Install Wine
+        run: |
+          sudo mkdir -pm755 /etc/apt/keyrings
+          wget -O - https://dl.winehq.org/wine-builds/winehq.key | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
+          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/questing/winehq-questing.sources
+          sudo apt update
+          sudo apt install winehq-stable --no-install-recommends -y
+
+      - name: Build AppImage
+        id: appimage
+        run: |
+          sudo chmod +x ./scripts/linux/build-appimage.sh
+          WIN_DIR="$GITHUB_WORKSPACE/win"
+          OUTPUT_FILE="$GITHUB_WORKSPACE/NMSE-x64.AppImage"
+          scripts/linux/build-appimage.sh "$WIN_DIR" "$OUTPUT_FILE"
+          echo "APPIMAGE_PATH=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.PROJECT_NAME }}-Wine-AppImage
+          path: ${{ steps.appimage.outputs.APPIMAGE_PATH }}
+          if-no-files-found: error
