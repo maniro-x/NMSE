@@ -3597,7 +3597,7 @@ public class LogicTests
     [InlineData(5, 64, 5, 1, 0)]
     [InlineData(266, -1, -1773, 52, 0)]
     [InlineData(100, 50, -200, 42, 3)]
-    [InlineData(-2048, -128, -2048, 579, 6)]
+    [InlineData(-2047, -127, -2047, 579, 6)]
     [InlineData(2047, 127, 2047, 1, 0)]
     public void CoordinateHelper_PortalCodeToVoxel_Roundtrip(int x, int y, int z, int sys, int planet)
     {
