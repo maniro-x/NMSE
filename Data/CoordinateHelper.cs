@@ -63,14 +63,14 @@ public static class CoordinateHelper
         /// 243 (579) is highest found so 244-2FF (580-767) is likely invalid
         if (systemIndex == 0 || systemIndex is >=580 and <=999)
             return false;
-        /// Y-Value check: 00 and 80 (128) are invalid (80->81)
-        if (rawY == 0 || rawY == 128)
+        /// Y-Value check: 80 (128) is invalid (80->81)
+        if (rawY == 128)
             return false;
-        /// X-Value check: 000 and 800 (2048) are invalid (800->801)
-        if (rawX == 0 || rawX == 2048)
+        /// X-Value check: 800 (2048) is invalid (800->801)
+        if (rawX == 2048)
             return false;
-        /// Z-Value check: 000 and 800 (2048) are invalid (800->801)
-        if (rawZ == 0 || rawZ == 2048)
+        /// Z-Value check: 800 (2048) is invalid (800->801)
+        if (rawZ == 2048)
             return false;
         /// Less than 3000 LY from galactic core is invalid
         /// 100104005005 is the reliable galactic core address
