@@ -179,7 +179,7 @@ public static class CoordinateHelper
     /// </summary>
     public static string UAIntegertoUAHex(decimal UAInt)
     {
-        maxInt = (Math.Pow(2,56)-1);
+        decimal maxInt = (Math.Pow(2,56)-1);
         if ((!decimal.IsInteger(UAInt)) || decimal.IsNegative(UAInt) || UAInt > maxInt)
             return "";
         string hexValue = UAInt.ToString("X16");
@@ -201,8 +201,8 @@ public static class CoordinateHelper
     /// </summary>
     public static string ConvertUpToPlanetCoords(double UpZ, double UpY, double UpX)
     {
-        double latitude = (Math.asin(UpZ) * (180 / Math.PI));
-        double longitude = (Math.atan2(UpY, UpX) * (180 / Math.PI));
+        double latitude = (Math.Asin(UpZ) * (180 / Math.PI));
+        double longitude = (Math.Atan2(UpY, UpX) * (180 / Math.PI));
         string strLat = string.Format("{0:F2}", latitude);
         string strLong = string.Format("{0:F2}", longitude);
         string planetCoords =  strLat + ", " + strLong;
