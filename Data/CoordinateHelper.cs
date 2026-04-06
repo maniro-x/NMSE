@@ -204,7 +204,7 @@ public static class CoordinateHelper
         double longitude = (MathF.atan2(UpY, UpX) * (180 / Math.PI));
         string strLat = string.Format("{0:F2}", latitude);
         string strLong = string.Format("{0:F2}", longitude);
-        string planetCoords =  strLat + ", " + strLong
+        string planetCoords =  strLat + ", " + strLong;
         return planetCoords;
     }
 
