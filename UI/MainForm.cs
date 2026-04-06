@@ -56,7 +56,6 @@ public partial class MainFormResources : Form
     private readonly BasePanel _basePanel;
     private readonly CataloguePanel _cataloguePanel;
     private readonly MilestonePanel _milestonePanel;
-    private readonly DiscoveryPanel _discoveryPanel;
     private readonly SettlementPanel _settlementPanel;
     private readonly ByteBeatPanel _byteBeatPanel;
     private readonly AccountPanel _accountPanel;
@@ -128,7 +127,6 @@ public partial class MainFormResources : Form
         _basePanel = new BasePanel();
         _cataloguePanel = new CataloguePanel();
         _milestonePanel = new MilestonePanel();
-        _discoveryPanel = new DiscoveryPanel();
         _settlementPanel = new SettlementPanel();
         _byteBeatPanel = new ByteBeatPanel();
         _accountPanel = new AccountPanel();
@@ -373,12 +371,11 @@ public partial class MainFormResources : Form
         _tabControl.TabPages.Add(CreateTab("Bases & Storage", _basePanel));         // 7
         _tabControl.TabPages.Add(CreateTab("Catalogue", _cataloguePanel));          // 8
         _tabControl.TabPages.Add(CreateTab("Milestones", _milestonePanel));         // 9
-        _tabControl.TabPages.Add(CreateTab("Discovery", _discoveryPanel));          // 10
-        _tabControl.TabPages.Add(CreateTab("Settlements", _settlementPanel));       // 11
-        _tabControl.TabPages.Add(CreateTab("ByteBeats", _byteBeatPanel));           // 12
-        _tabControl.TabPages.Add(CreateTab("Account Rewards", _accountPanel));      // 13
-        _tabControl.TabPages.Add(CreateTab("Export Settings", _exportConfigPanel)); // 14
-        _tabControl.TabPages.Add(CreateTab("Raw JSON Editor", _rawJsonPanel));      // 15
+        _tabControl.TabPages.Add(CreateTab("Settlements", _settlementPanel));       // 10
+        _tabControl.TabPages.Add(CreateTab("ByteBeats", _byteBeatPanel));           // 11
+        _tabControl.TabPages.Add(CreateTab("Account Rewards", _accountPanel));      // 12
+        _tabControl.TabPages.Add(CreateTab("Export Settings", _exportConfigPanel)); // 13
+        _tabControl.TabPages.Add(CreateTab("Raw JSON Editor", _rawJsonPanel));      // 14
 
         // When the user switches to the Raw JSON tab, sync all panel data to
         // the in-memory JsonObject first so the editor reflects current edits.
@@ -487,22 +484,19 @@ public partial class MainFormResources : Form
             case 9: // Milestones
                 _milestonePanel.LoadData(_currentSaveData);
                 break;
-            case 10: // Discovery
-                _discoveryPanel.LoadData(_currentSaveData);
-                break;
-            case 11: // Settlements
+            case 10: // Settlements
                 _settlementPanel.LoadData(_currentSaveData);
                 break;
-            case 12: // ByteBeats
+            case 11: // ByteBeats
                 _byteBeatPanel.LoadData(_currentSaveData);
                 break;
-            case 13: // Account Rewards
+            case 12: // Account Rewards
                 _accountPanel.LoadData(_currentSaveData);
                 break;
-            case 14: // Export Settings
+            case 13: // Export Settings
                 _exportConfigPanel.LoadConfig();
                 break;
-            case 15: // Raw JSON Editor
+            case 14: // Raw JSON Editor
                 _rawJsonPanel.LoadData(_currentSaveData);
                 break;
         }
@@ -527,12 +521,11 @@ public partial class MainFormResources : Form
         if (_loadedTabIndices.Contains(7)) _basePanel.SaveData(_currentSaveData);
         if (_loadedTabIndices.Contains(8)) _cataloguePanel.SaveData(_currentSaveData);
         if (_loadedTabIndices.Contains(9)) _milestonePanel.SaveData(_currentSaveData);
-        if (_loadedTabIndices.Contains(10)) _discoveryPanel.SaveData(_currentSaveData);
-        if (_loadedTabIndices.Contains(11)) _settlementPanel.SaveData(_currentSaveData);
-        if (_loadedTabIndices.Contains(12)) _byteBeatPanel.SaveData(_currentSaveData);
-        if (_loadedTabIndices.Contains(13)) _accountPanel.SaveData(_currentSaveData);
-        // Index 14 (Export Settings) has no save data to sync
-        if (_loadedTabIndices.Contains(15)) _rawJsonPanel.SaveData(_currentSaveData);
+        if (_loadedTabIndices.Contains(10)) _settlementPanel.SaveData(_currentSaveData);
+        if (_loadedTabIndices.Contains(11)) _byteBeatPanel.SaveData(_currentSaveData);
+        if (_loadedTabIndices.Contains(12)) _accountPanel.SaveData(_currentSaveData);
+        // Index 13 (Export Settings) has no save data to sync
+        if (_loadedTabIndices.Contains(14)) _rawJsonPanel.SaveData(_currentSaveData);
 
         if (_accountPanel.AccountData != null && _loadedTabIndices.Contains(0))
             _mainStatsPanel.SaveAccountData(_accountPanel.AccountData);
@@ -694,7 +687,6 @@ public partial class MainFormResources : Form
             _multitoolPanel.SetDatabase(_database);
             _vehiclePanel.SetDatabase(_database);
             _cataloguePanel.SetDatabase(_database);
-            _discoveryPanel.SetDatabase(_database);            
             _settlementPanel.SetDatabase(_database);
             _fleetPanel.SetDatabase(_database);
             _basePanel.SetDatabase(_database);
@@ -705,7 +697,6 @@ public partial class MainFormResources : Form
             _vehiclePanel.SetIconManager(_iconManager);
             _cataloguePanel.SetIconManager(_iconManager);
             _milestonePanel.SetIconManager(_iconManager);
-            _discoveryPanel.SetIconManager(_iconManager);
             _settlementPanel.SetIconManager(_iconManager);
             _basePanel.SetIconManager(_iconManager);
             _fleetPanel.SetIconManager(_iconManager);

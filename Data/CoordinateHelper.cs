@@ -55,12 +55,14 @@ public static class CoordinateHelper
         int rawY = Convert.ToInt32(portalCode[4..6], 16);
         int rawZ = Convert.ToInt32(portalCode[6..9], 16);
         int rawX = Convert.ToInt32(portalCode[9..12], 16);
-        /// P-Value Check: 7-16 is invalid, systems only have 6 planets
-        /// Allow 0 for the system even though it isn't valid planet
+        /// P-Value Check: 7-16 is invalid, systems can only have
+        /// up to 6 planets Allow 0 for the system even though it
+        /// isn't valid planet
         if (planetIndex >= 7)
         return false;
-        /// SSI-Value Check: 000 is invalid, 300-3E7 (768-999) is invalid
-        /// 243 (579) is highest found so 244-2FF (580-767) is likely invalid
+        /// SSI-Value Check: 000 is invalid, 0x300-0x3E7 (768-999) is invalid
+        /// 0x243 (579) is highest found so 0x244-0x2FF (580-767) is likely invalid
+        /// Purple systems start at 0x3E9 (1001), above is before Worlds2
         if (systemIndex == 0 || systemIndex is >=580 and <=999)
             return false;
         /// Y-Value check: 80 (128) is invalid (80->81)
