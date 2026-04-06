@@ -47,7 +47,7 @@ public static class CoordinateHelper
     private static bool IsValidPortal(string portalCode)
     {
         if (string.IsNullOrEmpty(portalCode) || portalCode.Length != 12 || (!IsHexString(portalCode)))
-            return false;
+        return false;
 
         int planetIndex = Convert.ToInt32(portalCode[..1], 16);
         int systemIndex = Convert.ToInt32(portalCode[1..4], 16);
@@ -56,7 +56,7 @@ public static class CoordinateHelper
         int rawX = Convert.ToInt32(portalCode[9..12], 16);
         /// P-Value Check: 7-16 is invalid, systems only have 6 planets
         if (planetIndex >= 7)
-            return false;
+        return false;
         /// SSI-Value Check: 000 is invalid, 300-3E7 (768-999) is invalid
         /// 243 (579) is highest found so 244-2FF (580-767) is likely invalid
         if (systemIndex == 0 || systemIndex is >=580 and <=999)
@@ -75,7 +75,8 @@ public static class CoordinateHelper
         /// Below this is likely invalid (needs exact verification)
         if (rawY <= 65 && rawZ <= 5 && rawX <= 5)
             return false;
-
+        else
+            return true;
     }
     /// TODO: Special indentication of Purple, Atlas, Blackhole and Glass systems.
     /// Special SolarSystemIndex: 079 = Blackhole, 07A = Atlas, 3E8 = Glass, 
@@ -92,8 +93,8 @@ public static class CoordinateHelper
         var parts = new List<string>(portalCode.Length);
         foreach (char c in portalCode)
         {
-            int val = Convert.ToInt32(c, 16);
-            parts.Add((val + 1).ToString());
+            glyphnum = Convert.ToInt32(c, 16);
+            parts.Add((glyphnum + 1).ToString());
         }
         return string.Join(",", parts);
     }
