@@ -179,7 +179,7 @@ public static class CoordinateHelper
     /// </summary>
     public static string UAIntegertoUAHex(decimal UAInt)
     {
-        maxInt = (Math.Pow(2,56)-1)
+        maxInt = (Math.Pow(2,56)-1);
         if ((!decimal.IsInteger(UAInt)) || decimal.IsNegative(UAInt) || UAInt > maxInt)
             return "";
         string hexValue = UAInt.ToString("X16");
