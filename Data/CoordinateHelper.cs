@@ -49,8 +49,8 @@ public static class CoordinateHelper
         if (string.IsNullOrEmpty(portalCode) || portalCode.Length != 12 || (!IsHexString(portalCode)))
             return false;
 
-        planetIndex = Convert.ToInt32(portalCode[..1], 16);
-        systemIndex = Convert.ToInt32(portalCode[1..4], 16);
+        int planetIndex = Convert.ToInt32(portalCode[..1], 16);
+        int systemIndex = Convert.ToInt32(portalCode[1..4], 16);
         int rawY = Convert.ToInt32(portalCode[4..6], 16);
         int rawZ = Convert.ToInt32(portalCode[6..9], 16);
         int rawX = Convert.ToInt32(portalCode[9..12], 16);
@@ -59,16 +59,16 @@ public static class CoordinateHelper
             return false;
         /// SSI-Value Check: 000 is invalid, 300-3E7 (768-999) is invalid
         /// 243 (579) is highest found so 244-2FF (580-767) is likely invalid
-        if (systemIndex = 0 || systemIndex is >=580 and <=999)
+        if (systemIndex == 0 || systemIndex is >=580 and <=999)
             return false;
         /// Y-Value check: 00 and 80 (128) are invalid (80->81)
-        if (rawY = 0 || rawY = 128)
+        if (rawY == 0 || rawY == 128)
             return false;
         /// X-Value check: 000 and 800 (2048) are invalid (800->801)
-        if (rawX = 0 || rawX = 2048)
+        if (rawX == 0 || rawX == 2048)
             return false;
         /// Z-Value check: 000 and 800 (2048) are invalid (800->801)
-        if (rawZ = 0 || rawZ = 2048)
+        if (rawZ == 0 || rawZ == 2048)
             return false;
         /// Less than 3000 LY from galactic core is invalid
         /// 100104005005 is the reliable galactic core address
@@ -88,7 +88,7 @@ public static class CoordinateHelper
     /// </summary>
     public static string PortalHexToDec(string portalCode)
     {
-        if (!IsValidPortal) return "";
+        if (!IsValidPortal(portalCode)) return "";
         var parts = new List<string>(portalCode.Length);
         foreach (char c in portalCode)
         {
@@ -107,7 +107,7 @@ public static class CoordinateHelper
     {
         voxelX = voxelY = voxelZ = systemIndex = planetIndex = 0;
 
-        if (!IsValidPortal)
+        if (!IsValidPortal(portalCode))
             return false;
 
         planetIndex = Convert.ToInt32(portalCode[..1], 16);
