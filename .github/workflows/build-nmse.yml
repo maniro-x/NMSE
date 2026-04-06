@@ -187,7 +187,7 @@ jobs:
     runs-on: windows-latest
     needs: [build-linux, build-macos]
     # Only require build-linux (which implies build-win) to succeed.
-    if: always() && needs.build-linux.result == 'success'
+    if: always() && needs.build-linux.result == 'success' && github.repository == 'vectorcmdr/NMSE'
 
     steps:
       - name: Checkout repository
