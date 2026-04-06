@@ -7,9 +7,123 @@ using System.Windows.Forms;
 
 namespace NMSE.Data;
 
-/// <summary>NMS galactic coordinate conversion utilities.</summary>
+/// <summary>
+/// NMS galactic coordinate conversion utilities.
+/// NMS uses many different formats (in-game or in the save file)
+/// to specify galactic coordinates.
+/// (P = Planet Index / S = Star System Index / Y = Height / Z = Width / X = Length)
+/// 1. Portal Glyphs: [P][SSS][YY][ZZZ][XXX]
+/// 12 character hex (0-F), 12 set of numbers (1-16) or graphical representation
+/// 2. Signal Booster: (ALPHA(4):XXXX:YYYY:ZZZZ:SSSS)
+/// Does not include the planet index
+/// 3. Voxel Coordinates: 
+/// 4. UnivseralAddress: Int64 or hex
+/// Functions are provided to convert any type to any other type
+/// </summary>
 public static class CoordinateHelper
 {
+    /// <summary>Validate string is hex characters only.</summary>
+    private static bool IsHexString(string s)
+    {
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            s = s.Substring(2);
+        }
+          
+        foreach (char c in s)
+        {
+            if (!Uri.IsHexDigit(c))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Verify the portal code is valid. This includes validating
+    /// the portal is in hex, 12 characters, and does not produce an
+    /// invalid address as reported by the in game portal mechanic.
+    /// (Or replaced with a rounded value.)
+    /// </summary>
+    private static bool IsValidPortal(string portalCode)
+    {
+        if (string.IsNullOrEmpty(portalCode) || portalCode.Length != 12 || (!IsHexString(portalCode)))
+            return false;
+
+        planetIndex = Convert.ToInt32(portalCode[..1], 16);
+        systemIndex = Convert.ToInt32(portalCode[1..4], 16);
+        int rawY = Convert.ToInt32(portalCode[4..6], 16);
+        int rawZ = Convert.ToInt32(portalCode[6..9], 16);
+        int rawX = Convert.ToInt32(portalCode[9..12], 16);
+        /// P-Value Check: 7-16 is invalid, systems only have 6 planets
+        if (planetIndex >= 7)
+            return false;
+        /// SSI-Value Check: 000 is invalid, 300-3E7 (768-999) is invalid
+        /// 243 (579) is highest found so 244-2FF (580-767) is likely invalid
+        if (systemIndex = 0 || systemIndex is >=580 and <=999)
+            return false;
+        /// Y-Value check: 00 and 80 (128) are invalid (80->81)
+        if (rawY = 0 || rawY = 128)
+            return false;
+        /// X-Value check: 000 and 800 (2048) are invalid (800->801)
+        if (rawX = 0 || rawX = 2048)
+            return false;
+        /// Z-Value check: 000 and 800 (2048) are invalid (800->801)
+        if (rawZ = 0 || rawZ = 2048)
+            return false;
+        /// Less than 3000 LY from galactic core is invalid
+        /// 100104005005 is the reliable galactic core address
+        /// Below this is likely invalid (needs exact verification)
+        if (rawY <= 65 and rawZ <= 5 and rawX <= 5)
+            return false;
+
+    }
+    /// TODO: Special indentication of Purple, Atlas, Blackhole and Glass systems.
+    /// Special SolarSystemIndex: 079 = Blackhole, 07A = Atlas, 3E8 = Glass, 
+    /// Purple systems are SSI starting at 1001/3E9+
+
+    /// <summary>
+    /// Convert a hex portal code string to a decimal string where each hex digit
+    /// is converted to its decimal value + 1 (0->1, 1->2, ..., F->16), comma-separated.
+    /// Example: "00E4FF91310A" -> "1,1,15,5,16,16,10,2,4,2,1,11"
+    /// </summary>
+    public static string PortalHexToDec(string portalCode)
+    {
+        if (!IsValidPortal) return "";
+        var parts = new List<string>(portalCode.Length);
+        foreach (char c in portalCode)
+        {
+            int val = Convert.ToInt32(c, 16);
+            parts.Add((val + 1).ToString());
+        }
+        return string.Join(",", parts);
+    }
+
+    /// <summary>
+    /// Parse a 12-character portal code (hex) back into voxel coordinates.
+    /// Format: {planetIndex:1}{systemIndex:3}{y:2}{z:3}{x:3}
+    /// Returns true if parsing was successful.
+    /// </summary>
+    public static bool PortalCodeToVoxel(string portalCode, out int voxelX, out int voxelY, out int voxelZ, out int systemIndex, out int planetIndex)
+    {
+        voxelX = voxelY = voxelZ = systemIndex = planetIndex = 0;
+
+        if (!IsValidPortal)
+            return false;
+
+        planetIndex = Convert.ToInt32(portalCode[..1], 16);
+        systemIndex = Convert.ToInt32(portalCode[1..4], 16);
+        int rawY = Convert.ToInt32(portalCode[4..6], 16);
+        int rawZ = Convert.ToInt32(portalCode[6..9], 16);
+        int rawX = Convert.ToInt32(portalCode[9..12], 16);
+
+        voxelX = ConvertAddressToVoxel(rawX, 3);
+        voxelY = ConvertAddressToVoxel(rawY, 2);
+        voxelZ = ConvertAddressToVoxel(rawZ, 3);
+        return true;
+    }
+
+    /// TODO: Portal to UA -- needs RealityIndex/Galaxy
+
     /// <summary>Convert voxel coordinates to a 12-character portal code.</summary>
     public static string VoxelToPortalCode(int voxelX, int voxelY, int voxelZ, int systemIndex, int planetIndex)
     {
@@ -26,6 +140,26 @@ public static class CoordinateHelper
         int y = voxelY + GetShiftValue(2);
         int z = voxelZ + GetShiftValue(3);
         return $"{x:X4}:{y:X4}:{z:X4}:{systemIndex:X4}";
+    }
+
+    private static int ConvertVoxelForAddress(int value, int byteLength)
+    {
+        int signValue = (int)Math.Pow(16, byteLength);
+        int num = value % signValue;
+        return num >= 0 ? num : num + signValue;
+    }
+
+    private static int GetShiftValue(int byteLength)
+    {
+        return (int)(0.5 * Math.Pow(16, byteLength) - 1);
+    }
+
+    /// <summary>Reverse of ConvertVoxelForAddress: address value back to signed voxel.</summary>
+    private static int ConvertAddressToVoxel(int address, int byteLength)
+    {
+        int signValue = (int)Math.Pow(16, byteLength);
+        int halfSign = signValue / 2;
+        return address >= halfSign ? address - signValue : address;
     }
 
     /// <summary>Compute straight-line distance to galaxy center in light-years.</summary>
@@ -66,78 +200,6 @@ public static class CoordinateHelper
         "player.state_in_ship_landed", "player.state_in_vehicle",
         "player.state_on_foot_corvette", "player.state_on_foot_corvette_landed"
     };
-
-    /// <summary>
-    /// Convert a hex portal code string to a decimal string where each hex digit
-    /// is converted to its decimal value + 1 (0->1, 1->2, ..., F->16), comma-separated.
-    /// Example: "00E4FF91310A" -> "1,1,15,5,16,16,10,2,4,2,1,11"
-    /// </summary>
-    public static string PortalHexToDec(string portalCode)
-    {
-        if (string.IsNullOrEmpty(portalCode)) return "";
-        var parts = new List<string>(portalCode.Length);
-        foreach (char c in portalCode)
-        {
-            int val;
-            if (c >= '0' && c <= '9') val = c - '0';
-            else if (c >= 'A' && c <= 'F') val = c - 'A' + 10;
-            else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
-            else continue;
-            parts.Add((val + 1).ToString());
-        }
-        return string.Join(",", parts);
-    }
-
-    private static int ConvertVoxelForAddress(int value, int byteLength)
-    {
-        int signValue = (int)Math.Pow(16, byteLength);
-        int num = value % signValue;
-        return num >= 0 ? num : num + signValue;
-    }
-
-    private static int GetShiftValue(int byteLength)
-    {
-        return (int)(0.5 * Math.Pow(16, byteLength) - 1);
-    }
-
-    /// <summary>
-    /// Parse a 12-character portal code (hex) back into voxel coordinates.
-    /// Format: {planetIndex:1}{systemIndex:3}{y:2}{z:3}{x:3}
-    /// Returns true if parsing was successful.
-    /// </summary>
-    public static bool PortalCodeToVoxel(string portalCode, out int voxelX, out int voxelY, out int voxelZ, out int systemIndex, out int planetIndex)
-    {
-        voxelX = voxelY = voxelZ = systemIndex = planetIndex = 0;
-
-        if (string.IsNullOrEmpty(portalCode) || portalCode.Length != 12)
-            return false;
-
-        // Validate all characters are hex digits
-        foreach (char c in portalCode)
-        {
-            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
-                return false;
-        }
-
-        planetIndex = Convert.ToInt32(portalCode[..1], 16);
-        systemIndex = Convert.ToInt32(portalCode[1..4], 16);
-        int rawY = Convert.ToInt32(portalCode[4..6], 16);
-        int rawZ = Convert.ToInt32(portalCode[6..9], 16);
-        int rawX = Convert.ToInt32(portalCode[9..12], 16);
-
-        voxelX = ConvertAddressToVoxel(rawX, 3);
-        voxelY = ConvertAddressToVoxel(rawY, 2);
-        voxelZ = ConvertAddressToVoxel(rawZ, 3);
-        return true;
-    }
-
-    /// <summary>Reverse of ConvertVoxelForAddress: address value back to signed voxel.</summary>
-    private static int ConvertAddressToVoxel(int address, int byteLength)
-    {
-        int signValue = (int)Math.Pow(16, byteLength);
-        int halfSign = signValue / 2;
-        return address >= halfSign ? address - signValue : address;
-    }
 
 #if WINFORMS
     /// <summary>Glyph image cache, indexed by hex digit 0-F.</summary>
