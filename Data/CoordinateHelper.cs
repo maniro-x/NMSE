@@ -91,10 +91,11 @@ public static class CoordinateHelper
     {
         if (!IsValidPortal(portalCode)) return "";
         var parts = new List<string>(portalCode.Length);
+        int num = 0;
         foreach (string c in portalCode)
         {
-            int glyphnum = Convert.ToInt32(c, 16);
-            parts.Add((glyphnum + 1).ToString());
+            int num = Convert.ToInt32(c, 16);
+            parts.Add((num + 1).ToString());
         }
         return string.Join(",", parts);
     }
