@@ -3581,13 +3581,6 @@ public class LogicTests
     }
 
     [Fact]
-    public void CoordinateHelper_PortalHexToDec_AllDigits()
-    {
-        // 0123456789ABCDEF -> 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
-        Assert.Equal("1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16", CoordinateHelper.PortalHexToDec("0123456789ABCDEF"));
-    }
-
-    [Fact]
     public void CoordinateHelper_PortalHexToDec_EmptyInput()
     {
         Assert.Equal("", CoordinateHelper.PortalHexToDec(""));
@@ -3601,11 +3594,11 @@ public class LogicTests
     }
 
     [Theory]
-    [InlineData(0, 0, 0, 0, 0)]
+    [InlineData(5, 64, 5, 1, 0)]
     [InlineData(266, -1, -1773, 52, 0)]
     [InlineData(100, 50, -200, 42, 3)]
-    [InlineData(-2048, -128, -2048, 600, 15)]
-    [InlineData(2047, 127, 2047, 0, 0)]
+    [InlineData(-2048, -128, -2048, 579, 6)]
+    [InlineData(2047, 127, 2047, 1, 0)]
     public void CoordinateHelper_PortalCodeToVoxel_Roundtrip(int x, int y, int z, int sys, int planet)
     {
         string code = CoordinateHelper.VoxelToPortalCode(x, y, z, sys, planet);

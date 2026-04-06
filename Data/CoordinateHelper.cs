@@ -55,6 +55,7 @@ public static class CoordinateHelper
         int rawZ = Convert.ToInt32(portalCode[6..9], 16);
         int rawX = Convert.ToInt32(portalCode[9..12], 16);
         /// P-Value Check: 7-16 is invalid, systems only have 6 planets
+        /// Allow 0 for the system even though it isn't valid planet
         if (planetIndex >= 7)
         return false;
         /// SSI-Value Check: 000 is invalid, 300-3E7 (768-999) is invalid
@@ -73,7 +74,7 @@ public static class CoordinateHelper
         /// Less than 3000 LY from galactic core is invalid
         /// 100104005005 is the reliable galactic core address
         /// Below this is likely invalid (needs exact verification)
-        if (rawY <= 65 && rawZ <= 5 && rawX <= 5)
+        if (rawY < 64 && rawZ < 5 && rawX < 5)
             return false;
         else
             return true;

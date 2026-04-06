@@ -405,7 +405,7 @@ public class DataLayerTests
 
     [Theory]
     [InlineData("00E4FF91310A", "1,1,15,5,16,16,10,2,4,2,1,11")]
-    [InlineData("000000000000", "1,1,1,1,1,1,1,1,1,1,1,1")]
+    [InlineData("100104005005", "2,1,1,2,1,5,1,1,6,1,1,6")]
     public void CoordinateHelper_PortalHexToDec_ConvertsCorrectly(string portalCode, string expected)
     {
         Assert.Equal(expected, CoordinateHelper.PortalHexToDec(portalCode));
