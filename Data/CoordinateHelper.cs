@@ -73,7 +73,7 @@ public static class CoordinateHelper
         /// Less than 3000 LY from galactic core is invalid
         /// 100104005005 is the reliable galactic core address
         /// Below this is likely invalid (needs exact verification)
-        if (rawY <= 65 and rawZ <= 5 and rawX <= 5)
+        if (rawY <= 65 && rawZ <= 5 && rawX <= 5)
             return false;
 
     }
