@@ -14,8 +14,8 @@ namespace NMSE.Data;
 /// (P = Planet Index / S = Star System Index / Y = Height / Z = Width / X = Length)
 /// 1. Portal Glyphs: [P][SSS][YY][ZZZ][XXX]
 /// 12 character hex (0-F), 12 set of numbers (1-16) or graphical representation
-/// 2. Signal Booster: (ALPHA(4):XXXX:YYYY:ZZZZ:SSSS)
-/// Does not include the planet index
+/// 2. Signal Booster: (AAAA:XXXX:YYYY:ZZZZ:SSSS)
+/// AAAA is 4 random letters; Does not include the planet index
 /// 3. Voxel Coordinates: 
 /// 4. UnivseralAddress: Int64 or hex
 /// Functions are provided to convert any type to any other type
@@ -43,6 +43,7 @@ public static class CoordinateHelper
     /// the portal is in hex, 12 characters, and does not produce an
     /// invalid address as reported by the in game portal mechanic.
     /// (Or replaced with a rounded value.)
+    /// TODO: Add Unit tests for invalid portalcodes
     /// </summary>
     private static bool IsValidPortal(string portalCode)
     {
@@ -100,6 +101,8 @@ public static class CoordinateHelper
         return string.Join(",", parts);
     }
 
+    /// TODO: PortalDextoHex conversion
+
     /// <summary>
     /// Parse a 12-character portal code (hex) back into voxel coordinates.
     /// Format: {planetIndex:1}{systemIndex:3}{y:2}{z:3}{x:3}
@@ -124,7 +127,7 @@ public static class CoordinateHelper
         return true;
     }
 
-    /// TODO: Portal to UA -- needs RealityIndex/Galaxy
+    /// TODO: Portal to UAHex -- needs RealityIndex/Galaxy
 
     /// <summary>Convert voxel coordinates to a 12-character portal code.</summary>
     public static string VoxelToPortalCode(int voxelX, int voxelY, int voxelZ, int systemIndex, int planetIndex)
@@ -162,6 +165,47 @@ public static class CoordinateHelper
         int signValue = (int)Math.Pow(16, byteLength);
         int halfSign = signValue / 2;
         return address >= halfSign ? address - signValue : address;
+    }
+    
+    /// <summary>
+    /// Converss UA interger values into a UA hex value
+    /// UAs as a 64 bit interger is found frequently
+    /// in the save file. It is a simple conversion
+    /// from the same value into hex but prefixed
+    /// with 0x and padded with two 0s (actually 56bit)
+    /// Possible values are 0-72,057,594,037,927,935 or (2^56)-1
+    /// UAs in hex are usually prefixed with 0x so
+    /// it will be output as the same.
+    /// </summary>
+    public static string UAIntegertoUAHex(decimal UAInt)
+    {
+        if ((!decimal.IsInteger(UAInt)) || decimal.IsNegative(UAInt) || UAInt > (Math.Pow(2,56)-1))
+            return "";
+        string hexValue = UAInt.ToString("X16");
+        string UAHex = "0x" + hexValue;
+        return UAHex;
+    }
+
+    /// <summary>
+    /// Converts UAs in hex to portal code + reality index
+    /// UAs in hex are essentially 0-padded portal codes with
+    /// the galaxy ids stuck in the middle.
+    /// [00][P][SSS][GG][YY][ZZZ][XXX]
+    /// Outputs the RealityIndex and PortalCode
+    /// </summary>
+
+    /// <summary>
+    /// Convert Up Values from placed objects to planetary
+    /// coordinates to two decimal places as a single string
+    /// </summary>
+    public static string ConvertUpToPlanetCoords(double UpZ, double UpY, double UpX)
+    {
+        double latitude = (MathF.asin(UpZ) * (180 / Math.PI));
+        double longitude = (MathF.atan2(UpY, UpX) * (180 / Math.PI));
+        string strLat = string.Format("{0:F2}", latitude);
+        string strLong = string.Format("{0:F2}", longitude);
+        string planetCoords =  strLat + ", " + strLong
+        return planetCoords;
     }
 
     /// <summary>Compute straight-line distance to galaxy center in light-years.</summary>
