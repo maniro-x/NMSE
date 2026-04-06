@@ -91,9 +91,9 @@ public static class CoordinateHelper
     {
         if (!IsValidPortal(portalCode)) return "";
         var parts = new List<string>(portalCode.Length);
-        foreach (char c in portalCode)
+        foreach (string c in portalCode)
         {
-            glyphnum = Convert.ToInt32(c, 16);
+            int glyphnum = Convert.ToInt32(c, 16);
             parts.Add((glyphnum + 1).ToString());
         }
         return string.Join(",", parts);
