@@ -9451,15 +9451,10 @@ public class LogicTests
     {
         var saveData = new JsonObject();
         var common = new JsonObject();
-        var owners = new JsonArray();
-        var owner = new JsonObject();
-        owner.Add("UID", "uid-abc");
-        owner.Add("USN", "Player");
-        owners.Add(owner);
-        common.Add("UsedDiscoveryOwnersV2", owners);
+        common.Add("SaveUniversalId", "suid-abc");
         saveData.Add("CommonStateData", common);
 
-        Assert.Equal("uid-abc", DiscoveryLogic.GetSaveUniversalId(saveData));
+        Assert.Equal("suid-abc", DiscoveryLogic.GetSaveUniversalId(saveData));
     }
 
     // ---- CreateSavedEntry ----
@@ -9469,15 +9464,15 @@ public class LogicTests
     {
         var record = new DiscoveryLogic.DiscoveryRecord(
             "Planet", "Discoverer", "PC", "2023-11-14 12:00:00",
-            "Euclid", 0, "123456789ABC", "MyPlanet");
+            "Euclid (1)", 0, "123456789ABC", "MyPlanet");
 
         var entry = DiscoveryLogic.CreateSavedEntry(record, "SaveOne", "uid-xyz");
 
         Assert.Equal("Planet", entry.DiscoveryType);
         Assert.Equal("Discoverer", entry.DiscoveredBy);
-        Assert.Equal("PC", entry.Platform);
         Assert.Equal("2023-11-14 12:00:00", entry.Timestamp);
-        Assert.Equal("Euclid", entry.GalaxyName);
+        // GalaxyName is derived from RealityIndex, not copied from the record
+        Assert.Contains("Euclid", entry.GalaxyName);
         Assert.Equal(0, entry.RealityIndex);
         Assert.Equal("123456789ABC", entry.PortalHex);
         Assert.Equal("MyPlanet", entry.CustomName);
@@ -9497,9 +9492,7 @@ public class LogicTests
             {
                 DiscoveryType = "SolarSystem",
                 DiscoveredBy = "Player1",
-                Platform = "PC",
                 Timestamp = "2023-11-14 12:00:00",
-                GalaxyName = "Euclid",
                 RealityIndex = 0,
                 PortalHex = "01234567890A",
                 CustomName = "TestSystem",
@@ -9511,9 +9504,7 @@ public class LogicTests
             {
                 DiscoveryType = "Planet",
                 DiscoveredBy = "Player2",
-                Platform = "PS5",
                 Timestamp = "2024-01-01 00:00:00",
-                GalaxyName = "Hilbert Dimension",
                 RealityIndex = 1,
                 PortalHex = "FEDCBA987654",
                 CustomName = "TestPlanet",
@@ -9542,9 +9533,11 @@ public class LogicTests
             Assert.Equal("Player1", loaded[0].DiscoveredBy);
             Assert.Equal("My System", loaded[0].UserLabel);
             Assert.Equal("uid-1", loaded[0].SaveUniversalId);
+            // GalaxyName is computed from RealityIndex, not stored in JSON
+            Assert.Contains("Euclid", loaded[0].GalaxyName);
 
             Assert.Equal("Planet", loaded[1].DiscoveryType);
-            Assert.Equal("Hilbert Dimension", loaded[1].GalaxyName);
+            Assert.Contains("Hilbert", loaded[1].GalaxyName);
             Assert.Equal("My Planet", loaded[1].UserLabel);
             Assert.Equal("uid-2", loaded[1].SaveUniversalId);
         }

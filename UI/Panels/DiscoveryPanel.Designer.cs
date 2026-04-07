@@ -196,8 +196,8 @@ partial class DiscoveryPanel
         var tab3 = new TabPage("Saved Discoveries");
         var container3 = new Panel { Dock = DockStyle.Fill };
 
-        // --- Button bar ---
-        _savedButtonPanel = new FlowLayoutPanel
+        // --- Filter bar ---
+        _savedFilterPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
@@ -206,28 +206,73 @@ partial class DiscoveryPanel
             Padding = new Padding(4),
         };
 
+        _savedFilterPanel.Controls.Add(new Label
+        {
+            Text = "Username:",
+            AutoSize = true,
+            Margin = new Padding(0, 5, 4, 0),
+        });
+        _savedUsernameFilter = new ComboBox
+        {
+            Width = 150,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(0, 2, 12, 0),
+        };
+        _savedUsernameFilter.SelectedIndexChanged += (s, e) => ApplySavedFilters();
+        _savedFilterPanel.Controls.Add(_savedUsernameFilter);
+
+        _savedFilterPanel.Controls.Add(new Label
+        {
+            Text = "Galaxy:",
+            AutoSize = true,
+            Margin = new Padding(0, 5, 4, 0),
+        });
+        _savedGalaxyFilter = new ComboBox
+        {
+            Width = 180,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(0, 2, 12, 0),
+        };
+        _savedGalaxyFilter.SelectedIndexChanged += (s, e) => ApplySavedFilters();
+        _savedFilterPanel.Controls.Add(_savedGalaxyFilter);
+
+        _savedFilterPanel.Controls.Add(new Label
+        {
+            Text = "Type:",
+            AutoSize = true,
+            Margin = new Padding(0, 5, 4, 0),
+        });
+        _savedTypeFilter = new ComboBox
+        {
+            Width = 150,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(0, 2, 12, 0),
+        };
+        _savedTypeFilter.SelectedIndexChanged += (s, e) => ApplySavedFilters();
+        _savedFilterPanel.Controls.Add(_savedTypeFilter);
+
         _savedSummaryLabel = new Label
         {
             AutoSize = true,
-            Margin = new Padding(0, 5, 12, 0),
+            Margin = new Padding(8, 5, 0, 0),
         };
-        _savedButtonPanel.Controls.Add(_savedSummaryLabel);
+        _savedFilterPanel.Controls.Add(_savedSummaryLabel);
 
         _saveDiscoveriesBtn = new Button
         {
             Text = "Save",
             AutoSize = true,
-            Margin = new Padding(0, 1, 0, 0),
+            Margin = new Padding(12, 1, 0, 0),
         };
         _saveDiscoveriesBtn.Click += OnSaveDiscoveries;
-        _savedButtonPanel.Controls.Add(_saveDiscoveriesBtn);
+        _savedFilterPanel.Controls.Add(_saveDiscoveriesBtn);
 
-        container3.Controls.Add(_savedButtonPanel);
+        container3.Controls.Add(_savedFilterPanel);
 
         _savedGrid = CreateSavedDiscoveryGrid();
 
         container3.Controls.Add(_savedGrid);
-        container3.Controls.Add(_savedButtonPanel);
+        container3.Controls.Add(_savedFilterPanel);
 
         tab3.Controls.Add(container3);
         _tabControl.TabPages.Add(tab3);
@@ -343,7 +388,10 @@ partial class DiscoveryPanel
 
     // Saved Discoveries tab
     private DataGridView _savedGrid = null!;
-    private FlowLayoutPanel _savedButtonPanel = null!;
+    private FlowLayoutPanel _savedFilterPanel = null!;
+    private ComboBox _savedUsernameFilter = null!;
+    private ComboBox _savedGalaxyFilter = null!;
+    private ComboBox _savedTypeFilter = null!;
     private Label _savedSummaryLabel = null!;
     private Button _saveDiscoveriesBtn = null!;
 }

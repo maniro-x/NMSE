@@ -30,9 +30,7 @@ internal static class DiscoveryLogic
     {
         public string DiscoveryType { get; set; } = "";
         public string DiscoveredBy { get; set; } = "";
-        public string Platform { get; set; } = "";
         public string Timestamp { get; set; } = "";
-        public string GalaxyName { get; set; } = "";
         public int RealityIndex { get; set; } = -1;
         public string PortalHex { get; set; } = "";
         public string CustomName { get; set; } = "";
@@ -41,6 +39,16 @@ internal static class DiscoveryLogic
 
         /// <summary>User-editable label for this entry (defaults to CustomName on copy).</summary>
         public string UserLabel { get; set; } = "";
+
+        /// <summary>
+        /// Returns the galaxy display name derived from <see cref="RealityIndex"/>
+        /// via <see cref="GalaxyDatabase.GetGalaxyDisplayName"/>.
+        /// Not persisted; computed at display time.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string GalaxyName => RealityIndex >= 0
+            ? GalaxyDatabase.GetGalaxyDisplayName(RealityIndex)
+            : "";
     }
 
     private const string SavedDiscoveriesFileName = "NMSE_Saved_Discoveries.json";
@@ -124,20 +132,16 @@ internal static class DiscoveryLogic
 
     /// <summary>
     /// Returns a stable identifier for the save slot.
-    /// Uses <c>CommonStateData.UsedDiscoveryOwnersV2[0].UID</c> if available,
-    /// as this uniquely identifies a save across renames.
+    /// Uses <c>CommonStateData.SaveUniversalId</c> which uniquely identifies
+    /// a save across renames.
     /// </summary>
     internal static string GetSaveUniversalId(JsonObject saveData)
     {
         try
         {
             var commonState = saveData.GetObject("CommonStateData");
-            var owners = commonState?.GetArray("UsedDiscoveryOwnersV2");
-            if (owners != null && owners.Length > 0)
-            {
-                string? uid = owners.GetObject(0)?.GetString("UID");
-                if (!string.IsNullOrEmpty(uid)) return uid;
-            }
+            string? suid = commonState?.GetString("SaveUniversalId");
+            if (!string.IsNullOrEmpty(suid)) return suid;
         }
         catch { }
 
@@ -279,7 +283,8 @@ internal static class DiscoveryLogic
 
     /// <summary>
     /// Creates a <see cref="SavedDiscoveryEntry"/> from a parsed <see cref="DiscoveryRecord"/>
-    /// plus the current save metadata.
+    /// plus the current save metadata. Does not copy Platform or GalaxyName string —
+    /// galaxy display is derived from <see cref="SavedDiscoveryEntry.RealityIndex"/> at display time.
     /// </summary>
     internal static SavedDiscoveryEntry CreateSavedEntry(
         DiscoveryRecord record, string saveName, string saveUniversalId)
@@ -288,9 +293,7 @@ internal static class DiscoveryLogic
         {
             DiscoveryType = record.DiscoveryType,
             DiscoveredBy = record.DiscoveredBy,
-            Platform = record.Platform,
             Timestamp = record.Timestamp,
-            GalaxyName = record.GalaxyName,
             RealityIndex = record.RealityIndex,
             PortalHex = record.PortalHex,
             CustomName = record.CustomName,

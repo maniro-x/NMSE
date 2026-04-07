@@ -24,6 +24,9 @@ public partial class DiscoveryPanel : UserControl
     /// <summary>Current save universal ID for copy-to-saved operations.</summary>
     private string _currentSaveUniversalId = "";
 
+    /// <summary>Player name from the save file, used to pin at top of Username filters.</summary>
+    private string _playerName = "";
+
     /// <summary>
     /// Multiplier to convert pixel height to em size for the glyph font.
     /// Derived from 0.75 (points-per-pixel at 96 DPI) × 1.15 (scale factor
@@ -49,6 +52,7 @@ public partial class DiscoveryPanel : UserControl
 
             // Resolve player name for Available records that lack OWS data
             string playerName = DiscoveryLogic.GetPlayerName(saveData);
+            _playerName = playerName;
 
             // --- Stored discoveries ---
             _allRecords.Clear();
@@ -116,18 +120,18 @@ public partial class DiscoveryPanel : UserControl
     private void PopulateFilterCombos()
     {
         var usernames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var galaxies = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var galaxyIndices = new SortedSet<int>();
         var types = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var r in _allRecords)
         {
             if (!string.IsNullOrEmpty(r.DiscoveredBy)) usernames.Add(r.DiscoveredBy);
-            if (!string.IsNullOrEmpty(r.GalaxyName)) galaxies.Add(r.GalaxyName);
+            if (r.RealityIndex >= 0) galaxyIndices.Add(r.RealityIndex);
             if (!string.IsNullOrEmpty(r.DiscoveryType)) types.Add(r.DiscoveryType);
         }
 
-        PopulateCombo(_usernameFilter, usernames);
-        PopulateCombo(_galaxyFilter, galaxies);
+        PopulateUsernameCombo(_usernameFilter, usernames, _playerName);
+        PopulateGalaxyCombo(_galaxyFilter, galaxyIndices);
         PopulateCombo(_typeFilter, types);
     }
 
@@ -146,18 +150,18 @@ public partial class DiscoveryPanel : UserControl
     private void PopulateAvailableFilterCombos()
     {
         var usernames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var galaxies = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var galaxyIndices = new SortedSet<int>();
         var types = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var r in _allAvailableRecords)
         {
             if (!string.IsNullOrEmpty(r.DiscoveredBy)) usernames.Add(r.DiscoveredBy);
-            if (!string.IsNullOrEmpty(r.GalaxyName)) galaxies.Add(r.GalaxyName);
+            if (r.RealityIndex >= 0) galaxyIndices.Add(r.RealityIndex);
             if (!string.IsNullOrEmpty(r.DiscoveryType)) types.Add(r.DiscoveryType);
         }
 
-        PopulateCombo(_availUsernameFilter, usernames);
-        PopulateCombo(_availGalaxyFilter, galaxies);
+        PopulateUsernameCombo(_availUsernameFilter, usernames, _playerName);
+        PopulateGalaxyCombo(_availGalaxyFilter, galaxyIndices);
         PopulateCombo(_availTypeFilter, types);
     }
 
@@ -171,6 +175,35 @@ public partial class DiscoveryPanel : UserControl
         PopulateGrid(_availableGrid, filtered, _availSummaryLabel, _allAvailableRecords.Count);
     }
 
+    // ---- Saved Filtering ----
+
+    private void PopulateSavedFilterCombos()
+    {
+        var usernames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var galaxyIndices = new SortedSet<int>();
+        var types = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var e in _savedEntries)
+        {
+            if (!string.IsNullOrEmpty(e.DiscoveredBy)) usernames.Add(e.DiscoveredBy);
+            if (e.RealityIndex >= 0) galaxyIndices.Add(e.RealityIndex);
+            if (!string.IsNullOrEmpty(e.DiscoveryType)) types.Add(e.DiscoveryType);
+        }
+
+        PopulateUsernameCombo(_savedUsernameFilter, usernames, _playerName);
+        PopulateGalaxyCombo(_savedGalaxyFilter, galaxyIndices);
+        PopulateCombo(_savedTypeFilter, types);
+    }
+
+    private void ApplySavedFilters()
+    {
+        string? userFilter = _savedUsernameFilter.SelectedItem as string;
+        string? galaxyFilter = _savedGalaxyFilter.SelectedItem as string;
+        string? typeFilter = _savedTypeFilter.SelectedItem as string;
+
+        PopulateSavedGrid(userFilter, galaxyFilter, typeFilter);
+    }
+
     // ---- Shared helpers ----
 
     private static void PopulateCombo(ComboBox combo, SortedSet<string> values)
@@ -180,6 +213,52 @@ public partial class DiscoveryPanel : UserControl
         combo.Items.Add(AllFilterValue);
         foreach (var v in values)
             combo.Items.Add(v);
+        combo.SelectedIndex = 0;
+        combo.EndUpdate();
+    }
+
+    /// <summary>
+    /// Populates a username filter combo with the player name pinned as the first option
+    /// after "(All)", followed by remaining usernames in alphabetical order.
+    /// </summary>
+    private static void PopulateUsernameCombo(ComboBox combo, SortedSet<string> usernames, string playerName)
+    {
+        combo.BeginUpdate();
+        combo.Items.Clear();
+        combo.Items.Add(AllFilterValue);
+
+        // Pin the save file player name at the top if present
+        if (!string.IsNullOrEmpty(playerName) && usernames.Contains(playerName))
+        {
+            combo.Items.Add(playerName);
+        }
+
+        foreach (var v in usernames)
+        {
+            if (!string.Equals(v, playerName, StringComparison.OrdinalIgnoreCase))
+                combo.Items.Add(v);
+        }
+
+        combo.SelectedIndex = 0;
+        combo.EndUpdate();
+    }
+
+    /// <summary>
+    /// Populates a galaxy filter combo in numerical (reality-index) order
+    /// instead of alphabetical name order.
+    /// </summary>
+    private static void PopulateGalaxyCombo(ComboBox combo, SortedSet<int> galaxyIndices)
+    {
+        combo.BeginUpdate();
+        combo.Items.Clear();
+        combo.Items.Add(AllFilterValue);
+
+        foreach (int idx in galaxyIndices)
+        {
+            string displayName = GalaxyDatabase.GetGalaxyDisplayName(idx);
+            combo.Items.Add(displayName);
+        }
+
         combo.SelectedIndex = 0;
         combo.EndUpdate();
     }
@@ -257,23 +336,39 @@ public partial class DiscoveryPanel : UserControl
     private void LoadSavedDiscoveriesTab()
     {
         _savedEntries = DiscoveryLogic.LoadSavedDiscoveries();
-        PopulateSavedGrid();
+        PopulateSavedFilterCombos();
+        PopulateSavedGrid(null, null, null);
     }
 
-    private void PopulateSavedGrid()
+    private void PopulateSavedGrid(string? userFilter, string? galaxyFilter, string? typeFilter)
     {
+        bool filterUser = userFilter != null && userFilter != AllFilterValue;
+        bool filterGalaxy = galaxyFilter != null && galaxyFilter != AllFilterValue;
+        bool filterType = typeFilter != null && typeFilter != AllFilterValue;
+
         _savedGrid.SuspendLayout();
         try
         {
             _savedGrid.Rows.Clear();
 
-            var rows = new List<DataGridViewRow>(_savedEntries.Count);
+            var rows = new List<DataGridViewRow>();
+            int displayIndex = 0;
             for (int i = 0; i < _savedEntries.Count; i++)
             {
                 var e = _savedEntries[i];
+
+                // Apply filters
+                if (filterUser && !string.Equals(e.DiscoveredBy, userFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (filterGalaxy && !string.Equals(e.GalaxyName, galaxyFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (filterType && !string.Equals(e.DiscoveryType, typeFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                displayIndex++;
                 var row = new DataGridViewRow();
                 row.CreateCells(_savedGrid,
-                    i + 1,
+                    displayIndex,
                     e.UserLabel,
                     e.DiscoveryType,
                     e.DiscoveredBy,
@@ -286,11 +381,15 @@ public partial class DiscoveryPanel : UserControl
                     "Delete");
                 // Store reality index in Galaxy cell's Tag for colored-dot painting
                 row.Cells[5].Tag = e.RealityIndex;
+                // Store the actual index into _savedEntries for delete operations
+                row.Tag = i;
                 rows.Add(row);
             }
 
             _savedGrid.Rows.AddRange(rows.ToArray());
-            _savedSummaryLabel.Text = $"{_savedEntries.Count} saved discoveries";
+            _savedSummaryLabel.Text = rows.Count == _savedEntries.Count
+                ? $"{_savedEntries.Count} saved discoveries"
+                : $"{rows.Count} / {_savedEntries.Count} saved discoveries";
         }
         finally
         {
@@ -308,7 +407,8 @@ public partial class DiscoveryPanel : UserControl
         var record = sourceRecords[rowIndex];
         var entry = DiscoveryLogic.CreateSavedEntry(record, _currentSaveName, _currentSaveUniversalId);
         _savedEntries.Add(entry);
-        PopulateSavedGrid();
+        PopulateSavedFilterCombos();
+        PopulateSavedGrid(null, null, null);
     }
 
     private void OnCopyStoredToSaved(object? sender, EventArgs e)
@@ -357,23 +457,30 @@ public partial class DiscoveryPanel : UserControl
         // Check if the Delete button column was clicked
         if (e.ColumnIndex >= 0 && _savedGrid.Columns[e.ColumnIndex].Name == "DeleteBtn")
         {
-            if (e.RowIndex < _savedEntries.Count)
+            // Use the row.Tag which stores the actual index into _savedEntries
+            var row = _savedGrid.Rows[e.RowIndex];
+            if (row.Tag is int entryIndex && entryIndex >= 0 && entryIndex < _savedEntries.Count)
             {
-                _savedEntries.RemoveAt(e.RowIndex);
-                PopulateSavedGrid();
+                _savedEntries.RemoveAt(entryIndex);
+                PopulateSavedFilterCombos();
+                ApplySavedFilters();
             }
         }
     }
 
     private void OnSavedGridCellEndEdit(object? sender, DataGridViewCellEventArgs e)
     {
-        if (e.RowIndex < 0 || e.RowIndex >= _savedEntries.Count) return;
+        if (e.RowIndex < 0) return;
 
         // Only the UserLabel column is editable
         if (e.ColumnIndex >= 0 && _savedGrid.Columns[e.ColumnIndex].Name == "UserLabel")
         {
-            string newLabel = _savedGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "";
-            _savedEntries[e.RowIndex].UserLabel = newLabel;
+            var row = _savedGrid.Rows[e.RowIndex];
+            if (row.Tag is int entryIndex && entryIndex >= 0 && entryIndex < _savedEntries.Count)
+            {
+                string newLabel = row.Cells[e.ColumnIndex].Value?.ToString() ?? "";
+                _savedEntries[entryIndex].UserLabel = newLabel;
+            }
         }
     }
 
