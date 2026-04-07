@@ -200,7 +200,7 @@ public static class CoordinateHelper
     {
         if ((!IsHexString(UAHex)) || UAHex.Length != 18)
         return false;
-        planetIndexHex = systemIndexHex = realityIndexHex = yCoordHex = zCoordHex = xCoordHex = 0
+        planetIndexHex = systemIndexHex = realityIndexHex = yCoordHex = zCoordHex = xCoordHex = 0;
         string planetIndexHex = (UAHex[..5]);
         string systemIndexHex = (UAHex[6..8]);
         string realityIndexHex = (UAHex[9..10]);
