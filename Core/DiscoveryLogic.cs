@@ -55,24 +55,24 @@ internal static class DiscoveryLogic
             {
                 discoveryType = dd.GetString("DT") ?? "";
 
-                // UA = Universal Address (stored as a large integer)
+                // UA = Universal Address (stored as a large integer).
+                // The UA is a 56-bit value packed as:
+                //   [00][P][SSS][GG][YY][ZZZ][XXX]  (hex)
+                // where P=planet, SSS=system, GG=galaxy, YY/ZZZ/XXX=coordinates.
+                // Extract fields via bit shifts to avoid string-slicing issues.
                 try
                 {
-                    decimal ua = dd.GetDecimal("UA");
-                    string uaHex = CoordinateHelper.UAIntegertoUAHex(ua);
-                    if (!string.IsNullOrEmpty(uaHex))
-                    {
-                        var (isSuccess, portal, galaxy) = CoordinateHelper.UAHextoPortalHexPlusRealityIndex(uaHex);
-                        if (isSuccess)
-                        {
-                            portalHex = portal;
-                            if (int.TryParse(galaxy, System.Globalization.NumberStyles.HexNumber, null, out int ri))
-                            {
-                                realityIndex = ri;
-                                galaxyName = GalaxyDatabase.GetGalaxyDisplayName(ri);
-                            }
-                        }
-                    }
+                    long uaLong = (long)dd.GetDecimal("UA");
+                    int x   = (int)(uaLong & 0xFFF);
+                    int z   = (int)((uaLong >> 12) & 0xFFF);
+                    int y   = (int)((uaLong >> 24) & 0xFF);
+                    int gal = (int)((uaLong >> 32) & 0xFF);
+                    int sys = (int)((uaLong >> 40) & 0xFFF);
+                    int pla = (int)((uaLong >> 52) & 0xF);
+
+                    portalHex = $"{pla:X1}{sys:X3}{y:X2}{z:X3}{x:X3}";
+                    realityIndex = gal;
+                    galaxyName = GalaxyDatabase.GetGalaxyDisplayName(gal);
                 }
                 catch { /* UA may be missing or invalid */ }
 

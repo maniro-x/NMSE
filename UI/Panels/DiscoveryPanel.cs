@@ -1,5 +1,3 @@
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
@@ -12,19 +10,11 @@ public partial class DiscoveryPanel : UserControl
     /// <summary>All parsed discovery records from the save file.</summary>
     private List<DiscoveryLogic.DiscoveryRecord> _allRecords = new();
 
-    /// <summary>
-    /// Multiplier to convert pixel height to em size for the glyph font.
-    /// Derived from 0.75 (points-per-pixel at 96 DPI) × 1.15 (scale factor
-    /// to maximise x-height within the cell while avoiding clipping).
-    /// </summary>
-    private const float GlyphFontSizeMultiplier = 0.863f;
-
     private static readonly string AllFilterValue = "(All)";
 
     public DiscoveryPanel()
     {
         InitializeComponent();
-        _discoveryGrid.CellPainting += OnCellPainting;
     }
 
     public void LoadData(JsonObject saveData)
@@ -147,7 +137,7 @@ public partial class DiscoveryPanel : UserControl
                     r.DiscoveredBy,
                     r.Timestamp,
                     r.GalaxyName,
-                    r.PortalHex, // stored as text, painted as glyphs
+                    r.PortalHex,
                     r.CustomName);
                 rows.Add(row);
             }
@@ -168,60 +158,5 @@ public partial class DiscoveryPanel : UserControl
         _summaryLabel.Text = shown == total
             ? $"{total} discoveries"
             : $"{shown} / {total} discoveries";
-    }
-
-    // ---- Glyph rendering in the Portal Glyphs column ----
-
-    private void OnCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
-    {
-        // Only custom-paint the "PortalGlyphs" column data cells
-        if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
-        if (_discoveryGrid.Columns[e.ColumnIndex].Name != "PortalGlyphs") return;
-
-        string portalHex = e.Value as string ?? "";
-
-        // Paint background and selection
-        e.PaintBackground(e.ClipBounds, true);
-
-        if (!string.IsNullOrEmpty(portalHex) && e.Graphics != null)
-        {
-            var glyphFamily = FontManager.GlyphFont;
-            if (glyphFamily != null)
-            {
-                DrawGlyphs(e.Graphics, portalHex, glyphFamily, e.CellBounds);
-            }
-            else
-            {
-                // Fallback: draw as plain text
-                TextRenderer.DrawText(e.Graphics, portalHex, _discoveryGrid.DefaultCellStyle.Font ?? DefaultFont,
-                    e.CellBounds, e.CellStyle?.ForeColor ?? SystemColors.ControlText, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
-            }
-        }
-
-        e.Handled = true;
-    }
-
-    /// <summary>
-    /// Renders portal glyph characters using the NMS_Glyphs_Mono.ttf font via GraphicsPath
-    /// for high-quality anti-aliased rendering.
-    /// </summary>
-    private static void DrawGlyphs(Graphics g, string portalHex, FontFamily glyphFamily, Rectangle cellBounds)
-    {
-        float pixelSize = cellBounds.Height - 4; // leave 2px margin top+bottom
-        if (pixelSize < 6) return;
-
-        // Convert pixel size to em size: emSize = pixelSize * multiplier * (dpiY / 72)
-        float emSize = pixelSize * GlyphFontSizeMultiplier * (g.DpiY / 72f);
-
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-
-        float x = cellBounds.X + 4;
-        float y = cellBounds.Y + 2;
-
-        using var path = new GraphicsPath();
-        path.AddString(portalHex, glyphFamily, (int)FontStyle.Regular, emSize,
-            new PointF(x, y), StringFormat.GenericDefault);
-        g.FillPath(SystemBrushes.ControlText, path);
     }
 }

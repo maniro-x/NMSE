@@ -112,7 +112,7 @@ partial class DiscoveryPanel
             new DataGridViewTextBoxColumn { Name = "DiscoveredBy", HeaderText = "Discovered By", Width = 140, SortMode = DataGridViewColumnSortMode.Automatic },
             new DataGridViewTextBoxColumn { Name = "Timestamp", HeaderText = "Timestamp", Width = 150, SortMode = DataGridViewColumnSortMode.Automatic },
             new DataGridViewTextBoxColumn { Name = "Galaxy", HeaderText = "Galaxy", Width = 150, SortMode = DataGridViewColumnSortMode.Automatic },
-            new DataGridViewTextBoxColumn { Name = "PortalGlyphs", HeaderText = "Portal Glyphs", Width = 200, SortMode = DataGridViewColumnSortMode.NotSortable },
+            new DataGridViewTextBoxColumn { Name = "PortalCode", HeaderText = "Portal Code", Width = 160, SortMode = DataGridViewColumnSortMode.Automatic },
             new DataGridViewTextBoxColumn { Name = "CustomName", HeaderText = "Custom Name", Width = 150, SortMode = DataGridViewColumnSortMode.Automatic }
         );
 
