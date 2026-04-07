@@ -68,14 +68,15 @@ internal static class DiscoveryLogic
             {
                 discoveryType = dd.GetString("DT") ?? "";
 
-                // UA = Universal Address (stored as a large integer).
+                // UA = Universal Address (stored as a large integer or hex string).
                 // The UA is a 56-bit value packed as:
                 //   [00][P][SSS][GG][YY][ZZZ][XXX]  (hex)
                 // where P=planet, SSS=system, GG=galaxy, YY/ZZZ/XXX=coordinates.
                 // Extract fields via bit shifts to avoid string-slicing issues.
+                // UA may be a numeric value or a hex string prefixed with "0x".
                 try
                 {
-                    long uaLong = (long)dd.GetDecimal("UA");
+                    long uaLong = ParseUA(dd);
                     int x   = (int)(uaLong & 0xFFF);
                     int z   = (int)((uaLong >> 12) & 0xFFF);
                     int y   = (int)((uaLong >> 24) & 0xFF);
@@ -130,5 +131,27 @@ internal static class DiscoveryLogic
         {
             return "";
         }
+    }
+
+    /// <summary>
+    /// Reads the UA field from a DD sub-object, handling both numeric and hex-string formats.
+    /// Numeric UAs are read via <see cref="JsonObject.GetDecimal"/> and cast to <c>long</c>.
+    /// Hex-string UAs (e.g. "0x0012ABC00FF123456") are parsed from the hex digits after the "0x" prefix.
+    /// </summary>
+    internal static long ParseUA(JsonObject dd)
+    {
+        var raw = dd.GetValue("UA");
+
+        // Try numeric first (integer or decimal stored as a number in JSON)
+        if (raw is not string)
+            return (long)Convert.ToDecimal(raw);
+
+        // Hex-string format: "0x00PSSSGGYYZZZZXXX"
+        string s = (string)raw;
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase) || s.StartsWith("0X", StringComparison.OrdinalIgnoreCase))
+            return Convert.ToInt64(s[2..], 16);
+
+        // Fallback: try parsing as a plain decimal string
+        return long.Parse(s);
     }
 }

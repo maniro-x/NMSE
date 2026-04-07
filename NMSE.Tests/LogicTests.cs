@@ -9196,4 +9196,99 @@ public class LogicTests
         var reparsedShip = JsonObject.Parse(shipJson);
         Assert.Equal("USCSS Abraxas", reparsedShip.GetString("Name"));
     }
+
+    // ---- Discovery Manager: hex UA parsing ----
+
+    [Fact]
+    public void DiscoveryLogic_ParseUA_NumericValue()
+    {
+        // UA stored as a JSON number (decimal).
+        // Example: planet=1, system=0x23A, galaxy=0, y=0xFF, z=0xABC, x=0x456
+        // packed = (1L << 52) | (0x23AL << 40) | (0L << 32) | (0xFFL << 24) | (0xABCL << 12) | 0x456
+        long expected = (1L << 52) | (0x23AL << 40) | (0L << 32) | (0xFFL << 24) | (0xABCL << 12) | 0x456L;
+
+        var dd = new JsonObject();
+        dd.Add("UA", (decimal)expected);
+        long result = DiscoveryLogic.ParseUA(dd);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseUA_HexString()
+    {
+        // Same UA value but stored as a hex string "0x..."
+        long expected = (1L << 52) | (0x23AL << 40) | (0L << 32) | (0xFFL << 24) | (0xABCL << 12) | 0x456L;
+        string hexStr = "0x" + expected.ToString("X16");
+
+        var dd = new JsonObject();
+        dd.Add("UA", hexStr);
+        long result = DiscoveryLogic.ParseUA(dd);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseUA_HexStringLowercase()
+    {
+        long expected = (2L << 52) | (0x100L << 40) | (3L << 32) | (0x80L << 24) | (0x200L << 12) | 0x100L;
+        string hexStr = "0x" + expected.ToString("x16");
+
+        var dd = new JsonObject();
+        dd.Add("UA", hexStr);
+        long result = DiscoveryLogic.ParseUA(dd);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseRecord_HexUA_ProducesCorrectPortalAndGalaxy()
+    {
+        // Build a minimal record with hex UA
+        // planet=3, system=0x1AB, galaxy=0 (Euclid), y=0x7F, z=0x123, x=0x456
+        long ua = (3L << 52) | (0x1ABL << 40) | (0L << 32) | (0x7FL << 24) | (0x123L << 12) | 0x456L;
+        string hexUA = "0x" + ua.ToString("X16");
+
+        var dd = new JsonObject();
+        dd.Add("DT", "SolarSystem");
+        dd.Add("UA", hexUA);
+        dd.Add("CN", "TestSystem");
+
+        var ows = new JsonObject();
+        ows.Add("USN", "Tester");
+        ows.Add("PTK", "PC");
+
+        var record = new JsonObject();
+        record.Add("DD", dd);
+        record.Add("TS", 1700000000L);
+        record.Add("OWS", ows);
+
+        var result = DiscoveryLogic.ParseRecord(record);
+
+        // Portal code = P + SSS + YY + ZZZ + XXX = 3 + 1AB + 7F + 123 + 456
+        Assert.Equal("31AB7F123456", result.PortalHex);
+        Assert.Equal("SolarSystem", result.DiscoveryType);
+        Assert.Equal("TestSystem", result.CustomName);
+        Assert.Equal("Tester", result.DiscoveredBy);
+        Assert.Equal(0, result.RealityIndex);
+        Assert.Contains("Euclid", result.GalaxyName);
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseRecord_NumericUA_StillWorks()
+    {
+        // Verify the existing numeric path still works
+        long ua = (1L << 52) | (0x23AL << 40) | (2L << 32) | (0xABL << 24) | (0xCDEL << 12) | 0x012L;
+
+        var dd = new JsonObject();
+        dd.Add("DT", "Planet");
+        dd.Add("UA", (decimal)ua);
+        dd.Add("CN", "");
+
+        var record = new JsonObject();
+        record.Add("DD", dd);
+
+        var result = DiscoveryLogic.ParseRecord(record);
+
+        // Portal code = P + SSS + YY + ZZZ + XXX = 1 + 23A + AB + CDE + 012
+        Assert.Equal("123AABCDE012", result.PortalHex);
+        Assert.Equal(2, result.RealityIndex);
+    }
 }
