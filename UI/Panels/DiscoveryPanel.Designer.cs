@@ -86,6 +86,15 @@ partial class DiscoveryPanel
         };
         _filterPanel.Controls.Add(_summaryLabel);
 
+        _copyStoredBtn = new Button
+        {
+            Text = "Copy to Saved",
+            AutoSize = true,
+            Margin = new Padding(12, 1, 0, 0),
+        };
+        _copyStoredBtn.Click += OnCopyStoredToSaved;
+        _filterPanel.Controls.Add(_copyStoredBtn);
+
         container.Controls.Add(_filterPanel);
 
         // --- DataGridView ---
@@ -164,6 +173,15 @@ partial class DiscoveryPanel
         };
         _availFilterPanel.Controls.Add(_availSummaryLabel);
 
+        _copyAvailableBtn = new Button
+        {
+            Text = "Copy to Saved",
+            AutoSize = true,
+            Margin = new Padding(12, 1, 0, 0),
+        };
+        _copyAvailableBtn.Click += OnCopyAvailableToSaved;
+        _availFilterPanel.Controls.Add(_copyAvailableBtn);
+
         container2.Controls.Add(_availFilterPanel);
 
         _availableGrid = CreateDiscoveryGrid();
@@ -173,6 +191,46 @@ partial class DiscoveryPanel
 
         tab2.Controls.Add(container2);
         _tabControl.TabPages.Add(tab2);
+
+        // === Tab 3: Saved Discoveries ===
+        var tab3 = new TabPage("Saved Discoveries");
+        var container3 = new Panel { Dock = DockStyle.Fill };
+
+        // --- Button bar ---
+        _savedButtonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            WrapContents = false,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(4),
+        };
+
+        _savedSummaryLabel = new Label
+        {
+            AutoSize = true,
+            Margin = new Padding(0, 5, 12, 0),
+        };
+        _savedButtonPanel.Controls.Add(_savedSummaryLabel);
+
+        _saveDiscoveriesBtn = new Button
+        {
+            Text = "Save",
+            AutoSize = true,
+            Margin = new Padding(0, 1, 0, 0),
+        };
+        _saveDiscoveriesBtn.Click += OnSaveDiscoveries;
+        _savedButtonPanel.Controls.Add(_saveDiscoveriesBtn);
+
+        container3.Controls.Add(_savedButtonPanel);
+
+        _savedGrid = CreateSavedDiscoveryGrid();
+
+        container3.Controls.Add(_savedGrid);
+        container3.Controls.Add(_savedButtonPanel);
+
+        tab3.Controls.Add(container3);
+        _tabControl.TabPages.Add(tab3);
 
         Controls.Add(_tabControl);
 
@@ -219,6 +277,50 @@ partial class DiscoveryPanel
         return grid;
     }
 
+    /// <summary>
+    /// Creates a DataGridView for the Saved Discoveries tab.
+    /// Includes an editable UserLabel column, Save Name column, and a Delete button column.
+    /// </summary>
+    private DataGridView CreateSavedDiscoveryGrid()
+    {
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = false,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AllowUserToResizeRows = false,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            MultiSelect = false,
+            RowHeadersVisible = false,
+            AutoGenerateColumns = false,
+            BackgroundColor = SystemColors.Window,
+            BorderStyle = BorderStyle.None,
+            CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+            ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
+        };
+
+        grid.Columns.AddRange(
+            new DataGridViewTextBoxColumn { Name = "Index", HeaderText = "#", Width = 55, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "UserLabel", HeaderText = "Name", Width = 150, ReadOnly = false, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "DiscoveryType", HeaderText = "Discovery Type", Width = 120, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "DiscoveredBy", HeaderText = "Discovered By", Width = 140, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "Timestamp", HeaderText = "Timestamp", Width = 150, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "Galaxy", HeaderText = "Galaxy", Width = 150, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "PortalGlyphs", HeaderText = "Portal Glyphs", Width = 160, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable },
+            new DataGridViewTextBoxColumn { Name = "PortalCode", HeaderText = "Portal Code", Width = 120, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "CustomName", HeaderText = "Custom Name", Width = 150, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewTextBoxColumn { Name = "SaveName", HeaderText = "Save Name", Width = 120, ReadOnly = true, SortMode = DataGridViewColumnSortMode.Automatic },
+            new DataGridViewButtonColumn { Name = "DeleteBtn", HeaderText = "", Width = 60, Text = "Delete", UseColumnTextForButtonValue = true }
+        );
+
+        grid.CellPainting += OnCellPainting;
+        grid.CellClick += OnSavedGridCellClick;
+        grid.CellEndEdit += OnSavedGridCellEndEdit;
+
+        return grid;
+    }
+
     private DoubleBufferedTabControl _tabControl = null!;
 
     // Stored Discoveries tab
@@ -228,6 +330,7 @@ partial class DiscoveryPanel
     private ComboBox _galaxyFilter = null!;
     private ComboBox _typeFilter = null!;
     private Label _summaryLabel = null!;
+    private Button _copyStoredBtn = null!;
 
     // Available Discoveries tab
     private DataGridView _availableGrid = null!;
@@ -236,4 +339,11 @@ partial class DiscoveryPanel
     private ComboBox _availGalaxyFilter = null!;
     private ComboBox _availTypeFilter = null!;
     private Label _availSummaryLabel = null!;
+    private Button _copyAvailableBtn = null!;
+
+    // Saved Discoveries tab
+    private DataGridView _savedGrid = null!;
+    private FlowLayoutPanel _savedButtonPanel = null!;
+    private Label _savedSummaryLabel = null!;
+    private Button _saveDiscoveriesBtn = null!;
 }

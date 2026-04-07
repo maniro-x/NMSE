@@ -21,6 +21,7 @@ namespace NMSE.Core;
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(ExportConfig))]
+[JsonSerializable(typeof(List<DiscoveryLogic.SavedDiscoveryEntry>))]
 internal partial class AppJsonContext : JsonSerializerContext
 {
 }

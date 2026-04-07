@@ -15,6 +15,15 @@ public partial class DiscoveryPanel : UserControl
     /// <summary>All parsed available discovery records from the save file.</summary>
     private List<DiscoveryLogic.DiscoveryRecord> _allAvailableRecords = new();
 
+    /// <summary>All user-saved discovery entries loaded from / persisted to JSON.</summary>
+    private List<DiscoveryLogic.SavedDiscoveryEntry> _savedEntries = new();
+
+    /// <summary>Current save name for copy-to-saved operations.</summary>
+    private string _currentSaveName = "";
+
+    /// <summary>Current save universal ID for copy-to-saved operations.</summary>
+    private string _currentSaveUniversalId = "";
+
     /// <summary>
     /// Multiplier to convert pixel height to em size for the glyph font.
     /// Derived from 0.75 (points-per-pixel at 96 DPI) × 1.15 (scale factor
@@ -34,6 +43,13 @@ public partial class DiscoveryPanel : UserControl
         SuspendLayout();
         try
         {
+            // Extract save metadata for copy-to-saved operations
+            _currentSaveName = DiscoveryLogic.GetSaveName(saveData);
+            _currentSaveUniversalId = DiscoveryLogic.GetSaveUniversalId(saveData);
+
+            // Resolve player name for Available records that lack OWS data
+            string playerName = DiscoveryLogic.GetPlayerName(saveData);
+
             // --- Stored discoveries ---
             _allRecords.Clear();
             _discoveryGrid.Rows.Clear();
@@ -63,12 +79,15 @@ public partial class DiscoveryPanel : UserControl
                 {
                     var rec = availRecords.GetObject(i);
                     if (rec == null) continue;
-                    _allAvailableRecords.Add(DiscoveryLogic.ParseRecord(rec));
+                    _allAvailableRecords.Add(DiscoveryLogic.ParseRecord(rec, playerName));
                 }
             }
 
             PopulateAvailableFilterCombos();
             PopulateGrid(_availableGrid, _allAvailableRecords, _availSummaryLabel, _allAvailableRecords.Count);
+
+            // --- Saved discoveries (from JSON file) ---
+            LoadSavedDiscoveriesTab();
         }
         finally
         {
@@ -78,7 +97,8 @@ public partial class DiscoveryPanel : UserControl
 
     public void SaveData(JsonObject saveData)
     {
-        // Read-only panel — no data to save back
+        // Read-only panel — no data to save back to the NMS save file.
+        // Saved discoveries are persisted to their own JSON file via the Save button.
     }
 
     public void ApplyUiLocalisation()
@@ -87,6 +107,8 @@ public partial class DiscoveryPanel : UserControl
             _tabControl.TabPages[0].Text = UiStrings.Get("discovery.tab_stored");
         if (_tabControl.TabPages.Count >= 2)
             _tabControl.TabPages[1].Text = UiStrings.Get("discovery.tab_available");
+        if (_tabControl.TabPages.Count >= 3)
+            _tabControl.TabPages[2].Text = UiStrings.Get("discovery.tab_saved");
     }
 
     // ---- Stored Filtering ----
@@ -185,7 +207,7 @@ public partial class DiscoveryPanel : UserControl
         return filtered;
     }
 
-    // ---- Grid population ----
+    // ---- Grid population (Stored / Available) ----
 
     private static void PopulateGrid(DataGridView grid, List<DiscoveryLogic.DiscoveryRecord> records,
         Label summaryLabel, int totalCount)
@@ -228,6 +250,136 @@ public partial class DiscoveryPanel : UserControl
         label.Text = shown == total
             ? $"{total} discoveries"
             : $"{shown} / {total} discoveries";
+    }
+
+    // ---- Saved Discoveries tab ----
+
+    private void LoadSavedDiscoveriesTab()
+    {
+        _savedEntries = DiscoveryLogic.LoadSavedDiscoveries();
+        PopulateSavedGrid();
+    }
+
+    private void PopulateSavedGrid()
+    {
+        _savedGrid.SuspendLayout();
+        try
+        {
+            _savedGrid.Rows.Clear();
+
+            var rows = new List<DataGridViewRow>(_savedEntries.Count);
+            for (int i = 0; i < _savedEntries.Count; i++)
+            {
+                var e = _savedEntries[i];
+                var row = new DataGridViewRow();
+                row.CreateCells(_savedGrid,
+                    i + 1,
+                    e.UserLabel,
+                    e.DiscoveryType,
+                    e.DiscoveredBy,
+                    e.Timestamp,
+                    e.GalaxyName,
+                    e.PortalHex,   // Portal Glyphs — painted via OnCellPainting
+                    e.PortalHex,   // Portal Code — plain text
+                    e.CustomName,
+                    e.SaveName,
+                    "Delete");
+                // Store reality index in Galaxy cell's Tag for colored-dot painting
+                row.Cells[5].Tag = e.RealityIndex;
+                rows.Add(row);
+            }
+
+            _savedGrid.Rows.AddRange(rows.ToArray());
+            _savedSummaryLabel.Text = $"{_savedEntries.Count} saved discoveries";
+        }
+        finally
+        {
+            _savedGrid.ResumeLayout(true);
+        }
+    }
+
+    private void CopySelectedToSaved(DataGridView sourceGrid, List<DiscoveryLogic.DiscoveryRecord> sourceRecords)
+    {
+        if (sourceGrid.SelectedRows.Count == 0) return;
+
+        int rowIndex = sourceGrid.SelectedRows[0].Index;
+        if (rowIndex < 0 || rowIndex >= sourceRecords.Count) return;
+
+        var record = sourceRecords[rowIndex];
+        var entry = DiscoveryLogic.CreateSavedEntry(record, _currentSaveName, _currentSaveUniversalId);
+        _savedEntries.Add(entry);
+        PopulateSavedGrid();
+    }
+
+    private void OnCopyStoredToSaved(object? sender, EventArgs e)
+    {
+        // When filtered, get the actual record from the displayed subset
+        var displayedRecords = GetDisplayedStoredRecords();
+        CopySelectedToSaved(_discoveryGrid, displayedRecords);
+    }
+
+    private void OnCopyAvailableToSaved(object? sender, EventArgs e)
+    {
+        var displayedRecords = GetDisplayedAvailableRecords();
+        CopySelectedToSaved(_availableGrid, displayedRecords);
+    }
+
+    private List<DiscoveryLogic.DiscoveryRecord> GetDisplayedStoredRecords()
+    {
+        string? userFilter = _usernameFilter.SelectedItem as string;
+        string? galaxyFilter = _galaxyFilter.SelectedItem as string;
+        string? typeFilter = _typeFilter.SelectedItem as string;
+
+        bool anyFilter = (userFilter != null && userFilter != AllFilterValue)
+                      || (galaxyFilter != null && galaxyFilter != AllFilterValue)
+                      || (typeFilter != null && typeFilter != AllFilterValue);
+
+        return anyFilter ? FilterRecords(_allRecords, userFilter, galaxyFilter, typeFilter) : _allRecords;
+    }
+
+    private List<DiscoveryLogic.DiscoveryRecord> GetDisplayedAvailableRecords()
+    {
+        string? userFilter = _availUsernameFilter.SelectedItem as string;
+        string? galaxyFilter = _availGalaxyFilter.SelectedItem as string;
+        string? typeFilter = _availTypeFilter.SelectedItem as string;
+
+        bool anyFilter = (userFilter != null && userFilter != AllFilterValue)
+                      || (galaxyFilter != null && galaxyFilter != AllFilterValue)
+                      || (typeFilter != null && typeFilter != AllFilterValue);
+
+        return anyFilter ? FilterRecords(_allAvailableRecords, userFilter, galaxyFilter, typeFilter) : _allAvailableRecords;
+    }
+
+    private void OnSavedGridCellClick(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (e.RowIndex < 0) return;
+
+        // Check if the Delete button column was clicked
+        if (e.ColumnIndex >= 0 && _savedGrid.Columns[e.ColumnIndex].Name == "DeleteBtn")
+        {
+            if (e.RowIndex < _savedEntries.Count)
+            {
+                _savedEntries.RemoveAt(e.RowIndex);
+                PopulateSavedGrid();
+            }
+        }
+    }
+
+    private void OnSavedGridCellEndEdit(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.RowIndex >= _savedEntries.Count) return;
+
+        // Only the UserLabel column is editable
+        if (e.ColumnIndex >= 0 && _savedGrid.Columns[e.ColumnIndex].Name == "UserLabel")
+        {
+            string newLabel = _savedGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "";
+            _savedEntries[e.RowIndex].UserLabel = newLabel;
+        }
+    }
+
+    private void OnSaveDiscoveries(object? sender, EventArgs e)
+    {
+        DiscoveryLogic.SaveSavedDiscoveries(_savedEntries);
     }
 
     // ---- Cell painting: Portal Glyphs + Galaxy colored dot ----

@@ -9291,4 +9291,266 @@ public class LogicTests
         Assert.Equal("123AABCDE012", result.PortalHex);
         Assert.Equal(2, result.RealityIndex);
     }
+
+    // ---- ParseLong (hex-aware timestamp parsing) ----
+
+    [Fact]
+    public void DiscoveryLogic_ParseLong_NumericValue()
+    {
+        var obj = new JsonObject();
+        obj.Add("TS", 1700000000L);
+        Assert.Equal(1700000000L, DiscoveryLogic.ParseLong(obj, "TS"));
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseLong_HexString()
+    {
+        var obj = new JsonObject();
+        obj.Add("TS", "0x6554C000");
+        Assert.Equal(0x6554C000L, DiscoveryLogic.ParseLong(obj, "TS"));
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseLong_HexStringLowercase()
+    {
+        var obj = new JsonObject();
+        obj.Add("TS", "0x6554c000");
+        Assert.Equal(0x6554C000L, DiscoveryLogic.ParseLong(obj, "TS"));
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseLong_DecimalString()
+    {
+        var obj = new JsonObject();
+        obj.Add("TS", "1700000000");
+        Assert.Equal(1700000000L, DiscoveryLogic.ParseLong(obj, "TS"));
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseRecord_HexTimestamp_Displayed()
+    {
+        var dd = new JsonObject();
+        dd.Add("DT", "Planet");
+        dd.Add("UA", 0m);
+        dd.Add("CN", "");
+
+        var record = new JsonObject();
+        record.Add("DD", dd);
+        // Timestamp 1700000000 = 0x6554C000
+        record.Add("TS", "0x6554C000");
+
+        var result = DiscoveryLogic.ParseRecord(record);
+
+        // Should have a non-empty timestamp string
+        Assert.False(string.IsNullOrEmpty(result.Timestamp), "Hex TS should produce a non-empty timestamp");
+        // Verify it contains the expected date (2023-11-14 in UTC)
+        Assert.Contains("2023", result.Timestamp);
+    }
+
+    // ---- Player name resolution ----
+
+    [Fact]
+    public void DiscoveryLogic_GetPlayerName_FromDiscoveryOwners()
+    {
+        var saveData = new JsonObject();
+        var common = new JsonObject();
+        var owners = new JsonArray();
+        var owner = new JsonObject();
+        owner.Add("USN", "TestPlayer");
+        owner.Add("UID", "uid-123");
+        owner.Add("LID", "lid-456");
+        owners.Add(owner);
+        common.Add("UsedDiscoveryOwnersV2", owners);
+        saveData.Add("CommonStateData", common);
+
+        Assert.Equal("TestPlayer", DiscoveryLogic.GetPlayerName(saveData));
+    }
+
+    [Fact]
+    public void DiscoveryLogic_GetPlayerName_FallbackToBases()
+    {
+        var saveData = new JsonObject();
+        var common = new JsonObject();
+        saveData.Add("CommonStateData", common);
+
+        var playerState = new JsonObject();
+        var bases = new JsonArray();
+        var baseObj = new JsonObject();
+        var ownerObj = new JsonObject();
+        ownerObj.Add("USN", "BaseOwner");
+        baseObj.Add("Owner", ownerObj);
+        bases.Add(baseObj);
+        playerState.Add("PersistentPlayerBases", bases);
+        saveData.Add("PlayerStateData", playerState);
+
+        Assert.Equal("BaseOwner", DiscoveryLogic.GetPlayerName(saveData));
+    }
+
+    [Fact]
+    public void DiscoveryLogic_GetPlayerName_ReturnsEmptyWhenNone()
+    {
+        var saveData = new JsonObject();
+        saveData.Add("CommonStateData", new JsonObject());
+
+        Assert.Equal("", DiscoveryLogic.GetPlayerName(saveData));
+    }
+
+    // ---- ParseRecord with playerNameOverride ----
+
+    [Fact]
+    public void DiscoveryLogic_ParseRecord_PlayerNameOverride_UsedWhenNoOWS()
+    {
+        var dd = new JsonObject();
+        dd.Add("DT", "SolarSystem");
+        dd.Add("UA", 0m);
+        dd.Add("CN", "");
+
+        var record = new JsonObject();
+        record.Add("DD", dd);
+        // No OWS sub-object
+
+        var result = DiscoveryLogic.ParseRecord(record, "OverrideName");
+        Assert.Equal("OverrideName", result.DiscoveredBy);
+    }
+
+    [Fact]
+    public void DiscoveryLogic_ParseRecord_PlayerNameOverride_NotUsedWhenOWSPresent()
+    {
+        var dd = new JsonObject();
+        dd.Add("DT", "SolarSystem");
+        dd.Add("UA", 0m);
+        dd.Add("CN", "");
+
+        var ows = new JsonObject();
+        ows.Add("USN", "ActualOwner");
+        ows.Add("PTK", "PC");
+
+        var record = new JsonObject();
+        record.Add("DD", dd);
+        record.Add("OWS", ows);
+
+        var result = DiscoveryLogic.ParseRecord(record, "OverrideName");
+        Assert.Equal("ActualOwner", result.DiscoveredBy);
+    }
+
+    // ---- Save metadata helpers ----
+
+    [Fact]
+    public void DiscoveryLogic_GetSaveName_ReturnsValue()
+    {
+        var saveData = new JsonObject();
+        var common = new JsonObject();
+        common.Add("SaveName", "My Save");
+        saveData.Add("CommonStateData", common);
+
+        Assert.Equal("My Save", DiscoveryLogic.GetSaveName(saveData));
+    }
+
+    [Fact]
+    public void DiscoveryLogic_GetSaveUniversalId_ReturnsUID()
+    {
+        var saveData = new JsonObject();
+        var common = new JsonObject();
+        var owners = new JsonArray();
+        var owner = new JsonObject();
+        owner.Add("UID", "uid-abc");
+        owner.Add("USN", "Player");
+        owners.Add(owner);
+        common.Add("UsedDiscoveryOwnersV2", owners);
+        saveData.Add("CommonStateData", common);
+
+        Assert.Equal("uid-abc", DiscoveryLogic.GetSaveUniversalId(saveData));
+    }
+
+    // ---- CreateSavedEntry ----
+
+    [Fact]
+    public void DiscoveryLogic_CreateSavedEntry_CopiesAllFields()
+    {
+        var record = new DiscoveryLogic.DiscoveryRecord(
+            "Planet", "Discoverer", "PC", "2023-11-14 12:00:00",
+            "Euclid", 0, "123456789ABC", "MyPlanet");
+
+        var entry = DiscoveryLogic.CreateSavedEntry(record, "SaveOne", "uid-xyz");
+
+        Assert.Equal("Planet", entry.DiscoveryType);
+        Assert.Equal("Discoverer", entry.DiscoveredBy);
+        Assert.Equal("PC", entry.Platform);
+        Assert.Equal("2023-11-14 12:00:00", entry.Timestamp);
+        Assert.Equal("Euclid", entry.GalaxyName);
+        Assert.Equal(0, entry.RealityIndex);
+        Assert.Equal("123456789ABC", entry.PortalHex);
+        Assert.Equal("MyPlanet", entry.CustomName);
+        Assert.Equal("SaveOne", entry.SaveName);
+        Assert.Equal("uid-xyz", entry.SaveUniversalId);
+        Assert.Equal("MyPlanet", entry.UserLabel);
+    }
+
+    // ---- Saved discoveries round-trip ----
+
+    [Fact]
+    public void DiscoveryLogic_SaveAndLoadSavedDiscoveries_RoundTrip()
+    {
+        var entries = new List<DiscoveryLogic.SavedDiscoveryEntry>
+        {
+            new()
+            {
+                DiscoveryType = "SolarSystem",
+                DiscoveredBy = "Player1",
+                Platform = "PC",
+                Timestamp = "2023-11-14 12:00:00",
+                GalaxyName = "Euclid",
+                RealityIndex = 0,
+                PortalHex = "01234567890A",
+                CustomName = "TestSystem",
+                SaveName = "Save1",
+                SaveUniversalId = "uid-1",
+                UserLabel = "My System",
+            },
+            new()
+            {
+                DiscoveryType = "Planet",
+                DiscoveredBy = "Player2",
+                Platform = "PS5",
+                Timestamp = "2024-01-01 00:00:00",
+                GalaxyName = "Hilbert Dimension",
+                RealityIndex = 1,
+                PortalHex = "FEDCBA987654",
+                CustomName = "TestPlanet",
+                SaveName = "Save2",
+                SaveUniversalId = "uid-2",
+                UserLabel = "My Planet",
+            }
+        };
+
+        // Save to a temp path
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_saved_disc_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        string tmpFile = Path.Combine(tmpDir, "test_saved.json");
+
+        try
+        {
+            // Use System.Text.Json directly for the round-trip test
+            var json = System.Text.Json.JsonSerializer.Serialize(entries, AppJsonContext.Default.ListSavedDiscoveryEntry);
+            File.WriteAllText(tmpFile, json);
+
+            var loaded = System.Text.Json.JsonSerializer.Deserialize(File.ReadAllText(tmpFile), AppJsonContext.Default.ListSavedDiscoveryEntry);
+            Assert.NotNull(loaded);
+            Assert.Equal(2, loaded.Count);
+
+            Assert.Equal("SolarSystem", loaded[0].DiscoveryType);
+            Assert.Equal("Player1", loaded[0].DiscoveredBy);
+            Assert.Equal("My System", loaded[0].UserLabel);
+            Assert.Equal("uid-1", loaded[0].SaveUniversalId);
+
+            Assert.Equal("Planet", loaded[1].DiscoveryType);
+            Assert.Equal("Hilbert Dimension", loaded[1].GalaxyName);
+            Assert.Equal("My Planet", loaded[1].UserLabel);
+            Assert.Equal("uid-2", loaded[1].SaveUniversalId);
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
 }

@@ -327,6 +327,7 @@
   "discovery.tab_words": "Known Words",
   "discovery.tab_stored": "Stored Discoveries",
   "discovery.tab_available": "Available Discoveries",
+  "discovery.tab_saved": "Saved Discoveries",
   "discovery.travel_complete": "Player coordinates updated to the selected system.",
   "discovery.travel_complete_title": "Travel Complete",
   "discovery.travel_confirm": "Travel to this system? This will update your current coordinates.",
