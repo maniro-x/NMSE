@@ -12,7 +12,11 @@ public partial class DiscoveryPanel : UserControl
     /// <summary>All parsed discovery records from the save file.</summary>
     private List<DiscoveryLogic.DiscoveryRecord> _allRecords = new();
 
-    /// <summary>Glyph font size multiplier to fill the cell height safely.</summary>
+    /// <summary>
+    /// Multiplier to convert pixel height to em size for the glyph font.
+    /// Derived from 0.75 (points-per-pixel at 96 DPI) × 1.15 (scale factor
+    /// to maximise x-height within the cell while avoiding clipping).
+    /// </summary>
     private const float GlyphFontSizeMultiplier = 0.863f;
 
     private static readonly string AllFilterValue = "(All)";
