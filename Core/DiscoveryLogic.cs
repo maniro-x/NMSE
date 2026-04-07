@@ -34,6 +34,19 @@ internal static class DiscoveryLogic
     }
 
     /// <summary>
+    /// Navigates to DiscoveryManagerData.DiscoveryData-v1.Available and returns the array.
+    /// Available discoveries have the same record structure as Stored (DD, TS, OWS).
+    /// </summary>
+    internal static JsonArray? FindAvailableRecords(JsonObject saveData)
+    {
+        var dmData = saveData.GetObject("DiscoveryManagerData");
+        if (dmData == null) return null;
+        var ddv1 = dmData.GetObject("DiscoveryData-v1");
+        if (ddv1 == null) return null;
+        return ddv1.GetArray("Available");
+    }
+
+    /// <summary>
     /// Parses a single discovery record JSON object into a display-friendly struct.
     /// </summary>
     internal static DiscoveryRecord ParseRecord(JsonObject record)
