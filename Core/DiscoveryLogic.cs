@@ -148,7 +148,7 @@ internal static class DiscoveryLogic
 
         // Hex-string format: "0x00PSSSGGYYZZZZXXX"
         string s = (string)raw;
-        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase) || s.StartsWith("0X", StringComparison.OrdinalIgnoreCase))
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             return Convert.ToInt64(s[2..], 16);
 
         // Fallback: try parsing as a plain decimal string
