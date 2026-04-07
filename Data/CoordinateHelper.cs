@@ -196,11 +196,10 @@ public static class CoordinateHelper
     /// [00][P][SSS][GG][YY][ZZZ][XXX]
     /// Outputs the RealityIndex and PortalCode
     /// </summary>
-    public static string UAHextoPortalHexPlusRealityIndex(string UAHex, out string portalCode, out string realityIndexHex)
+    public static bool UAHextoPortalHexPlusRealityIndex(string UAHex, out string portalCode, out string realityIndexHex)
     {
         if ((!IsHexString(UAHex)) || UAHex.Length != 18)
         return false;
-        planetIndexHex = systemIndexHex = realityIndexHex = yCoordHex = zCoordHex = xCoordHex = 0;
         string planetIndexHex = (UAHex[..5]);
         string systemIndexHex = (UAHex[6..8]);
         string realityIndexHex = (UAHex[9..10]);
