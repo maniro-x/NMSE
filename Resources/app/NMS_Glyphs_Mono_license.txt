@@ -9,6 +9,5 @@ The No Man's Sky portal glyphs font, as I understand it, was created by
 Stephan vd Feest aka Ghuyajil, and released into the public domain.
 https://nomanssky.gamepedia.com/UserProfile:Ghuyajil
 
-
 Specifically, the file here was obtained from
 https://nms.miraheze.org/wiki/File:NMS-Glyphs-Mono.ttf
