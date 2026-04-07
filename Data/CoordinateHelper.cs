@@ -200,7 +200,7 @@ public static class CoordinateHelper
     {
         string planetHex, systemHex, galaxyHex, yHex, zHex, xHex, portalHex;
         if ((!IsHexString(UAHex)) || UAHex.Length != 18)
-        return false;
+        return (false, "", "");
         // First two string characters are expexted to be 0x
         string planetHex = UAHex[..5];
         string systemHex = UAHex[6..8];
@@ -210,7 +210,7 @@ public static class CoordinateHelper
         string xHex = UAHex[16..18];
         string portalHex = planetHex + systemHex + yHex + zHex + xHex;
         if (!IsValidPortal(portalHex))
-        return false;
+        return (false, "", "");
         else
         return (true, portalHex, galaxyHex);
     }
