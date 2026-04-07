@@ -196,9 +196,9 @@ public static class CoordinateHelper
     /// [00][P][SSS][GG][YY][ZZZ][XXX]
     /// Outputs the RealityIndex and PortalCode
     /// </summary>
-    public static bool UAHextoPortalHexPlusRealityIndex(string UAHex, out string portalHex, out string galaxyHex)
+    public static (bool IsSuccess, string portalHex, string galaxyHex) UAHextoPortalHexPlusRealityIndex(string UAHex)
     {
-        planetHex = systemHex = galaxyHex = yHex = zHex = xHex = portalHex = null;
+        planetHex = systemHex = galaxyHex = yHex = zHex = xHex = portalHex = 0;
         if ((!IsHexString(UAHex)) || UAHex.Length != 18)
         return false;
         string planetHex = (UAHex[..5]);
@@ -211,7 +211,7 @@ public static class CoordinateHelper
         if (!IsValidPortal(portalHex))
         return false;
         else
-        return true;
+        return (true, portalHex, galaxyHex);
     }
 
     /// <summary>
