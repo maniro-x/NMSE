@@ -198,7 +198,7 @@ public static class CoordinateHelper
     /// </summary>
     public static string UAHextoPortalHexPlusRealityIndex(string UAHex, out string portalCode, out string realityIndexHex)
     {
-        if (!IsHexString(UAHex)) && (!UAHex.Length == 18 )
+        if ((!IsHexString(UAHex)) || UAHex.Length != 18)
         return false;
         planetIndexHex = systemIndexHex = realityIndexHex = yCoordHex = zCoordHex = xCoordHex = 0
         string planetIndexHex = (UAHex[..5]);
