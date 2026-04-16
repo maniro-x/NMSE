@@ -1,9 +1,6 @@
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
-using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
 
@@ -26,13 +23,6 @@ public partial class DiscoveryPanel : UserControl
 
     /// <summary>Player name from the save file, used to pin at top of Username filters.</summary>
     private string _playerName = "";
-
-    /// <summary>
-    /// Multiplier to convert pixel height to em size for the glyph font.
-    /// Derived from 0.75 (points-per-pixel at 96 DPI) × 1.15 (scale factor
-    /// to maximise x-height within the cell while avoiding clipping).
-    /// </summary>
-    private const float GlyphFontSizeMultiplier = 0.863f;
 
     private static readonly string AllFilterValue = "(All)";
 
@@ -511,8 +501,8 @@ public partial class DiscoveryPanel : UserControl
     }
 
     /// <summary>
-    /// Renders portal glyph characters using the NMS_Glyphs_Mono font via GraphicsPath
-    /// for high-quality anti-aliased rendering.
+    /// Renders portal glyph characters using CoordinateHelper.DrawGlyphString
+    /// for high-quality anti-aliased rendering using the NMS_Glyphs_Mono font.
     /// </summary>
     private static void PaintPortalGlyphs(DataGridView grid, DataGridViewCellPaintingEventArgs e)
     {
@@ -522,47 +512,35 @@ public partial class DiscoveryPanel : UserControl
 
         if (!string.IsNullOrEmpty(portalHex) && e.Graphics != null)
         {
-            var glyphFamily = FontManager.GlyphFont;
-            if (glyphFamily != null)
+            float pixelSize = e.CellBounds.Height - 4;
+            float x = e.CellBounds.X + 4;
+            float y = e.CellBounds.Y + 2;
+
+            // Determine brush based on selection state
+            Brush? brush = null;
+            SolidBrush? disposableBrush = null;
+            if (e.State.HasFlag(DataGridViewElementStates.Selected))
             {
-                float pixelSize = e.CellBounds.Height - 4;
-                if (pixelSize >= 6)
+                disposableBrush = new SolidBrush(e.CellStyle?.SelectionForeColor ?? SystemColors.HighlightText);
+                brush = disposableBrush;
+            }
+
+            try
+            {
+                bool drawn = CoordinateHelper.DrawGlyphString(e.Graphics, portalHex, x, y, pixelSize, brush);
+                if (!drawn)
                 {
-                    float emSize = pixelSize * GlyphFontSizeMultiplier * (e.Graphics.DpiY / 72f);
-
-                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                    e.Graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-
-                    float x = e.CellBounds.X + 4;
-                    float y = e.CellBounds.Y + 2;
-
-                    using var path = new GraphicsPath();
-                    path.AddString(portalHex, glyphFamily, (int)FontStyle.Regular, emSize,
-                        new PointF(x, y), StringFormat.GenericDefault);
-
-                    var brush = e.State.HasFlag(DataGridViewElementStates.Selected)
-                        ? new SolidBrush(e.CellStyle?.SelectionForeColor ?? SystemColors.HighlightText)
-                        : SystemBrushes.ControlText;
-                    try
-                    {
-                        e.Graphics.FillPath(brush, path);
-                    }
-                    finally
-                    {
-                        // Only dispose if we created a new brush (selected state)
-                        if (e.State.HasFlag(DataGridViewElementStates.Selected) && brush is SolidBrush sb)
-                            sb.Dispose();
-                    }
+                    // Fallback: draw as plain text
+                    TextRenderer.DrawText(e.Graphics, portalHex,
+                        grid.DefaultCellStyle.Font ?? grid.Font,
+                        e.CellBounds,
+                        e.CellStyle?.ForeColor ?? SystemColors.ControlText,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
                 }
             }
-            else
+            finally
             {
-                // Fallback: draw as plain text
-                TextRenderer.DrawText(e.Graphics, portalHex,
-                    grid.DefaultCellStyle.Font ?? grid.Font,
-                    e.CellBounds,
-                    e.CellStyle?.ForeColor ?? SystemColors.ControlText,
-                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+                disposableBrush?.Dispose();
             }
         }
 

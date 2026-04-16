@@ -2,7 +2,10 @@ using System;
 using System.IO;
 #if WINFORMS
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Windows.Forms;
+using NMSE.UI.Util;
 #endif
 
 namespace NMSE.Data;
@@ -273,6 +276,13 @@ public static class CoordinateHelper
     private static readonly Dictionary<char, Image?> _glyphCache = new();
     private static string? _glyphBasePath;
 
+    /// <summary>
+    /// Multiplier to convert pixel height to em size for the glyph font.
+    /// Derived from 0.75 (points-per-pixel at 96 DPI) × 1.15 (scale factor
+    /// to maximise x-height within the cell while avoiding clipping).
+    /// </summary>
+    public const float GlyphFontSizeMultiplier = 0.863f;
+
     /// <summary>Set the base path where glyph images (UI-GLYPH1.PNG etc.) are located.</summary>
     public static void SetGlyphBasePath(string basePath)
     {
@@ -407,6 +417,40 @@ public static class CoordinateHelper
         }
 
         panel.ResumeLayout(true);
+    }
+
+    /// <summary>
+    /// Draws a portal glyph string using the NMS_Glyphs_Mono font via GraphicsPath
+    /// for high-quality anti-aliased rendering. Suitable for use in DataGridView cell painting
+    /// or any Graphics context.
+    /// </summary>
+    /// <param name="graphics">The Graphics object to draw on.</param>
+    /// <param name="portalHex">The 12-character portal hex string to render (0-9, A-F).</param>
+    /// <param name="x">X coordinate for text origin.</param>
+    /// <param name="y">Y coordinate for text origin.</param>
+    /// <param name="pixelSize">The pixel height to use for sizing the glyphs.</param>
+    /// <param name="brush">The brush to fill the glyphs with. If null, uses SystemBrushes.ControlText.</param>
+    /// <returns>True if glyphs were drawn using the font; false if font was unavailable (caller should fall back to plain text).</returns>
+    public static bool DrawGlyphString(Graphics graphics, string portalHex, float x, float y, float pixelSize, Brush? brush = null)
+    {
+        if (graphics == null || string.IsNullOrEmpty(portalHex) || pixelSize < 6)
+            return false;
+
+        var glyphFamily = FontManager.GlyphFont;
+        if (glyphFamily == null)
+            return false;
+
+        float emSize = pixelSize * GlyphFontSizeMultiplier * (graphics.DpiY / 72f);
+
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+
+        using var path = new GraphicsPath();
+        path.AddString(portalHex, glyphFamily, (int)FontStyle.Regular, emSize,
+            new PointF(x, y), StringFormat.GenericDefault);
+
+        graphics.FillPath(brush ?? SystemBrushes.ControlText, path);
+        return true;
     }
 #endif
 }
