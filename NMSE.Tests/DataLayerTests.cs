@@ -5,7 +5,7 @@ namespace NMSE.Tests;
 
 /// <summary>
 /// Tests for data layer classes: WordDatabase, CompanionDatabase, GalaxyDatabase,
-/// TechAdjacencyDatabase, JsonNameMapper, and CoordinateHelper.
+/// TechAdjacencyDatabase, and JsonNameMapper.
 /// Shares the MutableStaticDatabases collection to prevent parallel execution
 /// with UiStringsTests / DatabaseLocalisationTests which mutate UiStrings state.
 /// </summary>
@@ -439,72 +439,5 @@ public class DataLayerTests
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
         mapper.Load(stream);
         return mapper;
-    }
-
-    // --- CoordinateHelper --------------------------------------------
-
-    [Fact]
-    public void CoordinateHelper_VoxelToPortalCode_Origin_Returns12Chars()
-    {
-        string code = CoordinateHelper.VoxelToPortalCode(0, 0, 0, 0, 0);
-        Assert.Equal(12, code.Length);
-        Assert.Equal("000000000000", code);
-    }
-
-    [Fact]
-    public void CoordinateHelper_VoxelToPortalCode_NonZero_Returns12Chars()
-    {
-        string code = CoordinateHelper.VoxelToPortalCode(100, 50, -200, 42, 3);
-        Assert.Equal(12, code.Length);
-    }
-
-    [Theory]
-    [InlineData("00E4FF91310A", "1,1,15,5,16,16,10,2,4,2,1,11")]
-    [InlineData("000000000000", "1,1,1,1,1,1,1,1,1,1,1,1")]
-    public void CoordinateHelper_PortalHexToDec_ConvertsCorrectly(string portalCode, string expected)
-    {
-        Assert.Equal(expected, CoordinateHelper.PortalHexToDec(portalCode));
-    }
-
-    [Fact]
-    public void CoordinateHelper_PortalHexToDec_EmptyInput_ReturnsEmpty()
-    {
-        Assert.Equal("", CoordinateHelper.PortalHexToDec(""));
-        Assert.Equal("", CoordinateHelper.PortalHexToDec(null!));
-    }
-
-    [Fact]
-    public void CoordinateHelper_GetDistanceToCenter_AtOrigin_IsZero()
-    {
-        Assert.Equal(0.0, CoordinateHelper.GetDistanceToCenter(0, 0, 0));
-    }
-
-    [Fact]
-    public void CoordinateHelper_GetDistanceToCenter_KnownVector()
-    {
-        // Distance of (3,4,0) = 5, * 100 = 500 ly
-        Assert.Equal(500.0, CoordinateHelper.GetDistanceToCenter(3, 4, 0));
-    }
-
-    [Theory]
-    [InlineData(1000.0, 100.0, 10)]
-    [InlineData(500.0, 200.0, 3)]
-    [InlineData(0.0, 100.0, 0)]
-    public void CoordinateHelper_GetJumpsToCenter_CalculatesCorrectly(
-        double distance, double perJump, int expected)
-    {
-        Assert.Equal(expected, CoordinateHelper.GetJumpsToCenter(distance, perJump));
-    }
-
-    [Fact]
-    public void CoordinateHelper_GetJumpsToCenter_ZeroRange_ReturnsZero()
-    {
-        Assert.Equal(0, CoordinateHelper.GetJumpsToCenter(1000.0, 0.0));
-    }
-
-    [Fact]
-    public void CoordinateHelper_GetJumpsToCenter_NegativeRange_ReturnsZero()
-    {
-        Assert.Equal(0, CoordinateHelper.GetJumpsToCenter(1000.0, -50.0));
     }
 }

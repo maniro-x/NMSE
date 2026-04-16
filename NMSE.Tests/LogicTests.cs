@@ -3269,7 +3269,158 @@ public class LogicTests
         Assert.Equal("BLD_STORAGE_NAME", BaseLogic.DefaultChestName);
     }
 
-    // --- CoordinateHelper: NormalizeGalacticAddress --------------------------
+    // --- CoordinateHelper --------------------------------------------
+
+    [Theory]
+    [InlineData("0x1234567890ABCDEF", true)]
+    [InlineData("0x1234567890abcdef", true)]
+    [InlineData("0X1234567890ABCDEF", true)]
+    [InlineData("0X1234567890abcdef", true)]
+    [InlineData("1234567890ABCDEF", true)]
+    [InlineData("1234567890abdcef", true)]
+    [InlineData("notvalidhex", false)]
+    [InlineData("nohex-w|th-$ymb0l$", false)]
+    public void CoordinateHelper_IsHexString_Validity(string testStrings, bool expected)
+    {
+        Assert.Equal(CoordinateHelper.IsHexString(testStrings), expected);
+    }
+
+    [Theory]
+    [InlineData("100104005005", true)]
+    [InlineData("65797F7FF7FF", true)]
+    [InlineData("000181801801", true)]
+    [InlineData("100081801801", false)]
+    [InlineData("100180801801", false)]
+    [InlineData("100181800801", false)]
+    [InlineData("100181801800", false)]
+    [InlineData("000000000000", false)]
+    [InlineData("700104005005", false)]
+    [InlineData("F00104005005", false)]
+    [InlineData("", false)]
+    [InlineData("nohexhere", false)]
+    [InlineData("1234567890ABCDEF", false)]
+    public void CoordinateHelper_IsValidPortal_Expected(string portalCode, bool expected)
+    {
+        Assert.Equal(CoordinateHelper.IsValidPortal(portalCode), expected);
+    }
+
+    [Fact]
+    public void CoordinateHelper_VoxelToPortalCode_Origin_Returns12Chars()
+    {
+        string code = CoordinateHelper.VoxelToPortalCode(0, 0, 0, 0, 0);
+        Assert.Equal(12, code.Length);
+        Assert.Equal("000000000000", code);
+    }
+
+    [Fact]
+    public void CoordinateHelper_VoxelToPortalCode_NonZero_Returns12Chars()
+    {
+        string code = CoordinateHelper.VoxelToPortalCode(100, 50, -200, 42, 3);
+        Assert.Equal(12, code.Length);
+    }
+   
+    [Theory]
+    [InlineData("00E4FF91310A", "1,1,15,5,16,16,10,2,4,2,1,11")]
+    [InlineData("100104005005", "2,1,1,2,1,5,1,1,6,1,1,6")]
+    [InlineData("65797F7FF7FF", "7,6,8,10,8,16,8,16,16,8,16,16")]
+    public void CoordinateHelper_PortalHexToDec_ConvertsCorrectly(string portalCode, string expected)
+    {
+        Assert.Equal(expected, CoordinateHelper.PortalHexToDec(portalCode));
+    }
+
+    [Fact]
+    public void CoordinateHelper_PortalHexToDec_EmptyInput_ReturnsEmpty()
+    {
+        Assert.Equal("", CoordinateHelper.PortalHexToDec(""));
+        Assert.Equal("", CoordinateHelper.PortalHexToDec(null!));
+    }
+
+[Theory]
+    [InlineData("", "", 0)]
+    [InlineData("invalidstring", "", 0)]
+    [InlineData("0x0123456789ABCDEF0", "", 0)]
+    [InlineData("0x0023456789ABCDEF0123456789", "", 0)]
+    [InlineData("80000000000000000", "", 0)]
+    [InlineData("0x0010010004005005", "100104005005", 1)]
+    [InlineData("0x001001FF04005005", "100104005005", 256)]
+    [InlineData("493680780665017", "01C1039060B9", 1)]
+    [InlineData("0x0001C164039060B9", "01C1039060B9", 101)]
+    public void CoordinateHelper_ParseUA_ReturnsCorrectly(string UA, string expectedPortal, int expectedGalaxy)
+    {
+        var expected = (expectedPortal, expectedGalaxy);
+        var results = CoordinateHelper.ParseUA(UA);
+        Assert.Equal(expected, results);
+    }
+
+    [Theory]
+    [InlineData(493680780665017, "0x0001C100039060B9")]
+    public void CoordinateHelper_UAIntegertoUAHex_ReturnsCorrectly(ulong UAInt, string expected)
+    {
+        Assert.Equal(expected, CoordinateHelper.UAIntegertoUAHex(UAInt));
+    }
+
+    [Theory]
+    [InlineData("", false, "", "")]
+    [InlineData("invalidstring", false, "", "")]
+    [InlineData("0x0123456789ABCDEF0", false, "", "")]
+    [InlineData("0x0123456789ABCDEF0123456789", false, "", "")]
+    [InlineData("0x0010010004005005", true, "100104005005", "00")]
+    [InlineData("0x001001FF04005005", true, "100104005005", "FF")]
+    public void CoordinateHelper_UAHextoPortalHexPlusGalaxyHex_ReturnsCorrectly(string UAHex, bool expectedSuccess, string expectedPortal, string expectedGalaxy)
+    {
+        var expected = (expectedSuccess, expectedPortal, expectedGalaxy);
+        var results = CoordinateHelper.UAHextoPortalHexPlusGalaxyHex(UAHex);
+        Assert.Equal(expected, results);
+    }
+
+    [Theory]
+    [InlineData(1, 0.5, 0.2, "")]
+    [InlineData(0.1, 5, 0.2, "")]
+    [InlineData(0.1, 0.5, 2, "")]
+    [InlineData(0.409067353990, -0.559478607057, 0.705776806012, "24.15, -38.40")]
+    [InlineData(-0.810972274894, 0.808769532771, -0.362414432326, "-54.19, 114.14")]
+    [InlineData(-0.496689638013, 0.262215673856, 0.729214913978, "-29.78, 19.78")]
+    [InlineData(0.719346754756, 0.729921607983, 0.543126763697, "46.00, 53.35")]
+    [InlineData(0.032839455888, 0.691314740863, -0.484250202434, "1.88, 125.01")]
+    public void CoordinateHelper_ConvertUpToPlanetCoords_ReturnsCorrectly(double upZ, double upY, double upX, string expected)
+    {
+        Assert.Equal(expected, CoordinateHelper.ConvertUpToPlanetCoords(upZ, upY, upX));
+    }
+    
+    [Fact]
+    public void CoordinateHelper_GetDistanceToCenter_AtOrigin_IsZero()
+    {
+        Assert.Equal(0.0, CoordinateHelper.GetDistanceToCenter(0, 0, 0));
+    }
+
+    [Fact]
+    public void CoordinateHelper_GetDistanceToCenter_KnownVector()
+    {
+        // Distance of (3,4,0) = 5, * 100 = 500 ly
+        Assert.Equal(500.0, CoordinateHelper.GetDistanceToCenter(3, 4, 0));
+    }
+
+    [Theory]
+    [InlineData(1000.0, 100.0, 10)]
+    [InlineData(500.0, 200.0, 3)]
+    [InlineData(0.0, 100.0, 0)]
+    public void CoordinateHelper_GetJumpsToCenter_CalculatesCorrectly(
+        double distance, double perJump, int expected)
+    {
+        Assert.Equal(expected, CoordinateHelper.GetJumpsToCenter(distance, perJump));
+    }
+
+    [Fact]
+    public void CoordinateHelper_GetJumpsToCenter_ZeroRange_ReturnsZero()
+    {
+        Assert.Equal(0, CoordinateHelper.GetJumpsToCenter(1000.0, 0.0));
+    }
+
+    [Fact]
+    public void CoordinateHelper_GetJumpsToCenter_NegativeRange_ReturnsZero()
+    {
+        Assert.Equal(0, CoordinateHelper.GetJumpsToCenter(1000.0, -50.0));
+    }
 
     [Fact]
     public void CoordinateHelper_NormalizeGalacticAddress_HexString_ReturnsUppercase()
@@ -4283,20 +4434,6 @@ public class LogicTests
     }
 
     [Fact]
-    public void CoordinateHelper_PortalHexToDec_ConvertsCorrectly()
-    {
-        // Example from the problem statement: 00E4FF91310A -> 1,1,15,5,16,16,10,2,4,2,1,11
-        Assert.Equal("1,1,15,5,16,16,10,2,4,2,1,11", CoordinateHelper.PortalHexToDec("00E4FF91310A"));
-    }
-
-    [Fact]
-    public void CoordinateHelper_PortalHexToDec_AllDigits()
-    {
-        // 0123456789ABCDEF -> 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
-        Assert.Equal("1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16", CoordinateHelper.PortalHexToDec("0123456789ABCDEF"));
-    }
-
-    [Fact]
     public void CoordinateHelper_PortalHexToDec_EmptyInput()
     {
         Assert.Equal("", CoordinateHelper.PortalHexToDec(""));
@@ -4310,11 +4447,11 @@ public class LogicTests
     }
 
     [Theory]
-    [InlineData(0, 0, 0, 0, 0)]
+    [InlineData(5, 64, 5, 1, 0)]
     [InlineData(266, -1, -1773, 52, 0)]
     [InlineData(100, 50, -200, 42, 3)]
-    [InlineData(-2048, -128, -2048, 600, 15)]
-    [InlineData(2047, 127, 2047, 0, 0)]
+    [InlineData(-2047, -127, -2047, 579, 6)]
+    [InlineData(2047, 127, 2047, 1, 0)]
     public void CoordinateHelper_PortalCodeToVoxel_Roundtrip(int x, int y, int z, int sys, int planet)
     {
         string code = CoordinateHelper.VoxelToPortalCode(x, y, z, sys, planet);
